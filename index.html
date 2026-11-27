@@ -1,0 +1,2852 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Cajas & Finanzas | Gestor Multicaja</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Plus Jakarta Sans & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Firebase SDK (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        canvas: {
+                            light: '#FFFFFF',
+                            subtle: '#F6F6F7',
+                            dark: '#0A0A0C',
+                            cardDark: '#131316',
+                            elevatedDark: '#1B1B20'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(161, 161, 170, 0.35);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(161, 161, 170, 0.6);
+        }
+        .editorial-glass {
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+        @keyframes pulse-border {
+            0%, 100% { border-color: rgba(245, 158, 11, 0.85); }
+            50% { border-color: rgba(239, 68, 68, 0.85); }
+        }
+        .alert-pulse {
+            animation: pulse-border 2s infinite;
+        }
+        /* Píldoras geométricas decorativas estilo Gumloop */
+        .geo-dots span {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+        }
+    </style>
+</head>
+<body class="bg-white text-zinc-900 dark:bg-canvas-dark dark:text-zinc-100 min-h-screen flex flex-col transition-colors duration-200 selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-zinc-900 antialiased">
+
+    <!-- Notificaciones Toast -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+    <!-- Barra Superior Minimalista Editorial -->
+    <header class="sticky top-0 z-30 bg-white/85 dark:bg-canvas-dark/85 editorial-glass border-b border-zinc-200/80 dark:border-zinc-800/80">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-wrap items-center justify-between py-3.5 gap-3">
+                
+                <!-- Identidad Editorial + Selector de Proyecto -->
+                <div class="flex items-center gap-3.5 flex-wrap">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center shadow-sm shrink-0">
+                            <i data-lucide="layers" class="w-4 h-4"></i>
+                        </div>
+                        <div class="hidden sm:block">
+                            <div class="geo-dots flex items-center gap-1 mb-0.5">
+                                <span class="rounded-full bg-emerald-400"></span>
+                                <span class="rounded-[3px] bg-amber-400"></span>
+                                <span class="rounded-full bg-sky-400"></span>
+                                <span class="rounded-[3px] bg-violet-400"></span>
+                            </div>
+                            <span class="font-display font-extrabold text-sm tracking-tight text-zinc-900 dark:text-white block leading-none">Cajas & Flujo</span>
+                        </div>
+                    </div>
+
+                    <div class="h-6 w-px bg-zinc-200 dark:bg-zinc-800 hidden sm:block"></div>
+                    
+                    <!-- Selector de Proyecto tipo Píldora -->
+                    <div class="flex items-center gap-1.5 bg-canvas-subtle dark:bg-canvas-cardDark p-1 rounded-full border border-zinc-200/80 dark:border-zinc-800">
+                        <select id="projectSelector" onchange="switchProject(this.value)" class="bg-transparent text-zinc-900 dark:text-white font-display font-bold text-xs sm:text-sm rounded-full pl-3 pr-2 py-1 focus:outline-none cursor-pointer">
+                        </select>
+                        
+                        <button onclick="openProjectModal('create')" title="Nuevo Proyecto" class="p-1.5 rounded-full hover:bg-white dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition" aria-label="Nuevo Proyecto">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <button onclick="openProjectModal('edit')" title="Renombrar Proyecto" class="p-1.5 rounded-full hover:bg-white dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 transition" aria-label="Editar Proyecto">
+                            <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <button id="btnDeleteProject" onclick="confirmDeleteProject()" title="Eliminar Proyecto" class="p-1.5 rounded-full hover:bg-rose-500/10 text-rose-500 transition" aria-label="Eliminar Proyecto">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Controles Globales: Cuenta Google, Respaldo JSON y Tema -->
+                <div class="flex items-center gap-2 flex-wrap">
+                    <!-- Botón Cuenta Google / Firebase con Avatar y Nombre cuando conecta -->
+                    <button id="btnCloudSync" onclick="openCloudModal()" title="Sincronización con cuenta de Google" class="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-canvas-subtle dark:bg-canvas-cardDark hover:bg-zinc-200/70 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-800 transition">
+                        <img id="headerUserAvatar" src="" alt="" class="w-4 h-4 rounded-full hidden object-cover">
+                        <i id="headerCloudIcon" data-lucide="cloud" class="w-3.5 h-3.5 text-sky-500"></i>
+                        <span id="cloudStatusLabel" class="max-w-[130px] truncate">Conectar Google</span>
+                    </button>
+
+                    <div class="flex items-center bg-canvas-subtle dark:bg-canvas-cardDark p-1 rounded-full border border-zinc-200/80 dark:border-zinc-800">
+                        <button onclick="exportBackup()" title="Descargar respaldo JSON" class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium hover:bg-white dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition">
+                            <i data-lucide="download" class="w-3.5 h-3.5 text-emerald-500"></i>
+                            <span class="hidden md:inline">Exportar</span>
+                        </button>
+                        
+                        <label title="Restaurar respaldo JSON" class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium hover:bg-white dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition cursor-pointer">
+                            <i data-lucide="upload" class="w-3.5 h-3.5 text-sky-500"></i>
+                            <span class="hidden md:inline">Importar</span>
+                            <input type="file" id="importFile" accept=".json" onchange="importBackup(event)" class="hidden">
+                        </label>
+
+                        <button onclick="confirmResetApp()" title="Vaciar todos los datos y empezar de cero" class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium hover:bg-rose-500/10 text-rose-600 dark:text-rose-400 transition">
+                            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                            <span class="hidden lg:inline">Limpiar</span>
+                        </button>
+                    </div>
+
+                    <button onclick="toggleTheme()" title="Cambiar tema claro/oscuro" class="p-2 rounded-full bg-canvas-subtle dark:bg-canvas-cardDark hover:bg-zinc-200/70 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 transition">
+                        <i id="themeIcon" data-lucide="sun" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenido Principal -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-7 space-y-8">
+
+        <!-- Cabecera Editorial + Barra de Acciones Principales -->
+        <section class="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
+            <div>
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-canvas-subtle dark:bg-canvas-cardDark border border-zinc-200/80 dark:border-zinc-800 text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 mb-3">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span id="headerSyncBadgeText">Almacenamiento Local Activo</span>
+                </div>
+                <h1 id="heroProjectTitle" class="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-zinc-900 dark:text-white">
+                    Mi Proyecto
+                </h1>
+                <p class="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                    Control de efectivo operativo, reservas, pagos a plazos y comparativa de insumos.
+                </p>
+            </div>
+
+            <!-- Botones de Acción Estilo Píldora de Alto Contraste -->
+            <div class="flex flex-wrap items-center gap-2">
+                <button onclick="openTxModal('expense')" class="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-zinc-900 hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-zinc-900 font-semibold text-xs sm:text-sm shadow-sm transition active:scale-95">
+                    <i data-lucide="minus" class="w-4 h-4 text-rose-400 dark:text-rose-600"></i>
+                    <span>Registrar Gasto</span>
+                </button>
+                
+                <button onclick="openTxModal('income')" class="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-canvas-subtle hover:bg-zinc-200/70 dark:bg-canvas-cardDark dark:hover:bg-zinc-800 text-zinc-900 dark:text-white font-semibold text-xs sm:text-sm border border-zinc-200 dark:border-zinc-800 transition active:scale-95">
+                    <i data-lucide="plus" class="w-4 h-4 text-emerald-500"></i>
+                    <span>Registrar Ingreso</span>
+                </button>
+                
+                <button onclick="openTransferModal()" class="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-canvas-subtle hover:bg-zinc-200/70 dark:bg-canvas-cardDark dark:hover:bg-zinc-800 text-zinc-900 dark:text-white font-semibold text-xs sm:text-sm border border-zinc-200 dark:border-zinc-800 transition active:scale-95">
+                    <i data-lucide="arrow-left-right" class="w-4 h-4 text-amber-500"></i>
+                    <span>Transferir</span>
+                </button>
+
+                <button onclick="openBoxModal('create')" class="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full bg-transparent hover:bg-canvas-subtle dark:hover:bg-canvas-cardDark text-zinc-600 dark:text-zinc-300 font-semibold text-xs sm:text-sm border border-dashed border-zinc-300 dark:border-zinc-700 transition">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    <span>Nueva Caja</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Cuadrícula Bento de KPIs -->
+        <section class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <!-- Total en Cajas -->
+            <div class="bg-canvas-subtle dark:bg-canvas-cardDark rounded-3xl p-6 border border-zinc-200/80 dark:border-zinc-800/80 flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-zinc-500 dark:text-zinc-400">Efectivo Total en Cajas</span>
+                    <span class="w-8 h-8 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                        <i data-lucide="wallet" class="w-4 h-4"></i>
+                    </span>
+                </div>
+                <div class="mt-4">
+                    <h2 id="kpiTotalBoxes" class="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-zinc-900 dark:text-white">Q 0.00</h2>
+                    <p id="kpiBoxCount" class="text-xs text-zinc-500 dark:text-zinc-400 mt-1.5">2 cajas incluidas</p>
+                </div>
+            </div>
+
+            <!-- Pendiente por Cobrar / Plazos -->
+            <div class="bg-canvas-subtle dark:bg-canvas-cardDark rounded-3xl p-6 border border-zinc-200/80 dark:border-zinc-800/80 flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-zinc-500 dark:text-zinc-400">Por Cobrar / Plazos</span>
+                    <span class="w-8 h-8 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                        <i data-lucide="calendar-clock" class="w-4 h-4"></i>
+                    </span>
+                </div>
+                <div class="mt-4">
+                    <h2 id="kpiTotalPending" class="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-zinc-900 dark:text-white">Q 0.00</h2>
+                    <p id="kpiPendingCount" class="text-xs text-zinc-500 dark:text-zinc-400 mt-1.5">0 cuentas pendientes</p>
+                </div>
+            </div>
+
+            <!-- Balance Global Proyecto -->
+            <div class="bg-zinc-900 dark:bg-zinc-100 rounded-3xl p-6 border border-zinc-800 dark:border-zinc-200 flex flex-col justify-between text-white dark:text-zinc-900 shadow-sm">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-zinc-400 dark:text-zinc-600">Balance Total Proyecto</span>
+                    <span class="w-8 h-8 rounded-full bg-white/10 dark:bg-zinc-900/10 text-white dark:text-zinc-900 flex items-center justify-center">
+                        <i data-lucide="landmark" class="w-4 h-4"></i>
+                    </span>
+                </div>
+                <div class="mt-4">
+                    <h2 id="kpiGrandTotal" class="font-display text-3xl sm:text-4xl font-extrabold tracking-tight">Q 0.00</h2>
+                    <p class="text-xs text-zinc-400 dark:text-zinc-600 mt-1.5">Cajas operativas + Cuentas por cobrar</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Cuadrícula de Cajas del Proyecto -->
+        <section>
+            <div class="flex items-center justify-between mb-3.5">
+                <h3 class="font-display text-base font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                    <span>Cajas Disponibles</span>
+                </h3>
+                <span class="text-xs text-zinc-400">Operación directa por caja</span>
+            </div>
+            
+            <div id="boxesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            </div>
+        </section>
+
+        <!-- Navegación por Pestañas Estilo Píldora Editorial -->
+        <section class="space-y-4">
+            <div class="flex items-center justify-between flex-wrap gap-3">
+                <div class="inline-flex p-1.5 rounded-full bg-canvas-subtle dark:bg-canvas-cardDark border border-zinc-200/80 dark:border-zinc-800 overflow-x-auto max-w-full">
+                    <button id="tabBtnHistory" onclick="switchTab('history')" class="flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-bold bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-sm transition whitespace-nowrap">
+                        <i data-lucide="history" class="w-3.5 h-3.5"></i>
+                        <span>Historial</span>
+                        <span id="badgeHistoryCount" class="px-2 py-0.5 text-[11px] rounded-full bg-white/20 dark:bg-zinc-900/15">0</span>
+                    </button>
+                    
+                    <button id="tabBtnPending" onclick="switchTab('pending')" class="flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-bold text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition whitespace-nowrap">
+                        <i data-lucide="users" class="w-3.5 h-3.5"></i>
+                        <span>Pagos a Plazos / Préstamos</span>
+                        <span id="badgePendingCount" class="px-2 py-0.5 text-[11px] rounded-full bg-zinc-200/80 dark:bg-zinc-800">0</span>
+                    </button>
+
+                    <button id="tabBtnMaterials" onclick="switchTab('materials')" class="flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-bold text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition whitespace-nowrap">
+                        <i data-lucide="hammer" class="w-3.5 h-3.5"></i>
+                        <span>Materiales y Ferreterías</span>
+                        <span id="badgeMaterialsCount" class="px-2 py-0.5 text-[11px] rounded-full bg-zinc-200/80 dark:bg-zinc-800">0</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Contenedor Principal de Pestañas -->
+            <div class="bg-white dark:bg-canvas-cardDark rounded-3xl border border-zinc-200/80 dark:border-zinc-800/80 overflow-hidden shadow-sm">
+                
+                <!-- CONTENIDO PESTAÑA 1: HISTORIAL DE MOVIMIENTOS -->
+                <div id="tabContentHistory" class="p-5 sm:p-6 space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                        <div class="lg:col-span-2 relative">
+                            <i data-lucide="search" class="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                            <input type="text" id="filterSearch" oninput="renderHistory()" placeholder="Buscar por asunto (ej. barniz, tornillos, madera...)" class="w-full pl-10 pr-4 py-2 text-sm rounded-full bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white">
+                        </div>
+
+                        <div>
+                            <select id="filterBox" onchange="renderHistory()" class="w-full px-4 py-2 text-sm rounded-full bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white">
+                                <option value="all">Todas las cajas</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <select id="filterType" onchange="renderHistory()" class="w-full px-4 py-2 text-sm rounded-full bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white">
+                                <option value="all">Todos los tipos</option>
+                                <option value="income">Ingresos (+)</option>
+                                <option value="expense">Gastos (-)</option>
+                                <option value="transfer">Transferencias</option>
+                                <option value="loan_out">Préstamos salientes</option>
+                                <option value="loan_in">Abonos / Reintegros</option>
+                            </select>
+                        </div>
+
+                        <div class="flex gap-1.5">
+                            <input type="date" id="filterDate" onchange="renderHistory()" title="Filtrar por fecha específica" class="w-full px-3.5 py-2 text-sm rounded-full bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white">
+                            <button onclick="clearHistoryFilters()" title="Limpiar filtros" class="p-2 rounded-full bg-canvas-subtle dark:bg-canvas-elevatedDark hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 shrink-0">
+                                <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="filteredSummaryBar" class="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark/70 text-xs text-zinc-600 dark:text-zinc-300">
+                        <span id="filteredCountText">Mostrando 0 movimientos</span>
+                        <div class="flex items-center gap-4 font-semibold">
+                            <span class="text-emerald-600 dark:text-emerald-400">Entradas: <span id="filteredInTotal">Q 0.00</span></span>
+                            <span class="text-rose-600 dark:text-rose-400">Salidas: <span id="filteredOutTotal">Q 0.00</span></span>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto rounded-2xl border border-zinc-200/80 dark:border-zinc-800">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-canvas-subtle dark:bg-canvas-elevatedDark/60 text-zinc-500 dark:text-zinc-400 text-[11px] uppercase tracking-wider border-b border-zinc-200 dark:border-zinc-800">
+                                    <th class="py-3 px-4 font-semibold">Fecha y Hora</th>
+                                    <th class="py-3 px-4 font-semibold">Caja</th>
+                                    <th class="py-3 px-4 font-semibold">Tipo</th>
+                                    <th class="py-3 px-4 font-semibold">Asunto / Detalle</th>
+                                    <th class="py-3 px-4 font-semibold text-right">Monto</th>
+                                    <th class="py-3 px-4 font-semibold text-center w-16">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyTableBody" class="divide-y divide-zinc-200/70 dark:divide-zinc-800/80 text-sm">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- CONTENIDO PESTAÑA 2: PAGOS A PLAZOS / PRÉSTAMOS -->
+                <div id="tabContentPending" class="hidden p-5 sm:p-6 space-y-5">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h4 class="font-display text-base font-bold text-zinc-900 dark:text-white">Control de Usuarios a Plazos y Préstamos</h4>
+                            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Añade usuarios con número de plazos y cuota mensual. El botón <strong>"Pagar Plazo"</strong> integra la cuota del mes actual directo hacia Efectivo.</p>
+                        </div>
+                        
+                        <div class="flex items-center gap-2">
+                            <select id="filterPendingStatus" onchange="renderPending()" class="px-4 py-2 text-xs sm:text-sm rounded-full bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-800 focus:outline-none">
+                                <option value="active">Pendientes Activos</option>
+                                <option value="completed">Completados / Pagados</option>
+                                <option value="all">Todos</option>
+                            </select>
+
+                            <button onclick="openPendingModal()" class="flex items-center gap-2 px-4 py-2 rounded-full bg-zinc-900 hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-zinc-900 font-semibold text-xs sm:text-sm shadow-sm transition">
+                                <i data-lucide="user-plus" class="w-4 h-4"></i>
+                                <span>+ Añadir Usuario / Plazo</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="pendingGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    </div>
+                </div>
+
+                <!-- CONTENIDO PESTAÑA 3: MATERIALES Y COMPARADOR DE FERRETERÍAS -->
+                <div id="tabContentMaterials" class="hidden p-5 sm:p-6 space-y-5">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h4 class="font-display text-base font-bold text-zinc-900 dark:text-white">Lista de Materiales y Precios por Ferretería</h4>
+                            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Compara precios entre distintas ferreterías para identificar automáticamente dónde te sale más barato.</p>
+                        </div>
+
+                        <div class="flex items-center gap-2 w-full sm:w-auto">
+                            <div class="relative flex-1 sm:w-64">
+                                <i data-lucide="search" class="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                                <input type="text" id="filterMaterialSearch" oninput="renderMaterials()" placeholder="Buscar material o ferretería..." class="w-full pl-9 pr-4 py-2 text-xs sm:text-sm rounded-full bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-800 focus:outline-none">
+                            </div>
+                            <button onclick="openMaterialModal()" class="flex items-center gap-2 px-4 py-2 rounded-full bg-zinc-900 hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-zinc-900 font-semibold text-xs sm:text-sm shadow-sm transition shrink-0">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                                <span>+ Añadir Material</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="materialsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ========================================== -->
+    <!-- MODALES DEL SISTEMA                        -->
+    <!-- ========================================== -->
+
+    <!-- 1. Modal Registrar Movimiento (Ingreso / Gasto) -->
+    <div id="txModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-canvas-cardDark rounded-3xl max-w-md w-full border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden">
+            <div id="txModalHeader" class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+                <h3 id="txModalTitle" class="font-display font-bold text-lg flex items-center gap-2 text-zinc-900 dark:text-white">
+                    <i data-lucide="minus-circle" class="w-5 h-5 text-rose-500"></i>
+                    <span>Registrar Gasto</span>
+                </h3>
+                <button onclick="closeModal('txModal')" class="p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 transition">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            
+            <form id="txForm" onsubmit="submitTransaction(event)" class="p-6 space-y-4">
+                <input type="hidden" id="txType" value="expense">
+                
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Seleccionar Caja</label>
+                    <select id="txBoxId" required class="w-full px-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-sm font-medium focus:outline-none">
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Monto (Quetzales - Q)</label>
+                    <div class="relative">
+                        <span class="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-zinc-400">Q</span>
+                        <input type="number" id="txAmount" step="0.01" min="0.01" required placeholder="0.00" class="w-full pl-9 pr-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 font-display text-lg font-bold focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Asunto / Motivo Detallado</label>
+                    <input type="text" id="txSubject" required placeholder="Ej. Tornillos 2 pulgadas, Barniz mate, Anticipo..." class="w-full px-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-sm focus:outline-none">
+                    <div class="flex flex-wrap gap-1.5 mt-2">
+                        <button type="button" onclick="setTxSubject('Saldo inicial de caja')" class="text-[11px] px-2.5 py-1 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-medium transition">Saldo inicial</button>
+                        <button type="button" onclick="setTxSubject('Compra de tornillos y clavos')" class="text-[11px] px-2.5 py-1 rounded-full bg-canvas-subtle dark:bg-canvas-elevatedDark hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 transition">Tornillos</button>
+                        <button type="button" onclick="setTxSubject('Barniz, sellador y tiner')" class="text-[11px] px-2.5 py-1 rounded-full bg-canvas-subtle dark:bg-canvas-elevatedDark hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 transition">Barniz</button>
+                        <button type="button" onclick="setTxSubject('Lijas y pegamento madera')" class="text-[11px] px-2.5 py-1 rounded-full bg-canvas-subtle dark:bg-canvas-elevatedDark hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 transition">Lijas/Cola</button>
+                        <button type="button" onclick="setTxSubject('Compra de madera')" class="text-[11px] px-2.5 py-1 rounded-full bg-canvas-subtle dark:bg-canvas-elevatedDark hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 transition">Madera</button>
+                        <button type="button" onclick="setTxSubject('Herramientas / Brocas / Discos')" class="text-[11px] px-2.5 py-1 rounded-full bg-canvas-subtle dark:bg-canvas-elevatedDark hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 transition">Herramientas</button>
+                        <button type="button" onclick="setTxSubject('Combustible / Flete')" class="text-[11px] px-2.5 py-1 rounded-full bg-canvas-subtle dark:bg-canvas-elevatedDark hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 transition">Combustible/Flete</button>
+                        <button type="button" onclick="setTxSubject('Anticipo de trabajo / mueble')" class="text-[11px] px-2.5 py-1 rounded-full bg-canvas-subtle dark:bg-canvas-elevatedDark hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 transition">Anticipo mueble</button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Fecha y Hora</label>
+                    <input type="datetime-local" id="txDate" required class="w-full px-4 py-2 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-sm focus:outline-none">
+                </div>
+
+                <div class="pt-2 flex items-center justify-end gap-2">
+                    <button type="button" onclick="closeModal('txModal')" class="px-4 py-2.5 rounded-full text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition">Cancelar</button>
+                    <button type="submit" id="txSubmitBtn" class="px-5 py-2.5 rounded-full text-xs font-bold text-white bg-zinc-900 dark:bg-white dark:text-zinc-900 shadow-sm transition">Guardar Movimiento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 2. Modal Transferir / Reponer entre Cajas -->
+    <div id="transferModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-canvas-cardDark rounded-3xl max-w-md w-full border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden">
+            <div class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+                <h3 class="font-display font-bold text-lg flex items-center gap-2 text-zinc-900 dark:text-white">
+                    <i data-lucide="arrow-left-right" class="w-5 h-5 text-amber-500"></i>
+                    <span>Transferir / Reponer Efectivo</span>
+                </h3>
+                <button onclick="closeModal('transferModal')" class="p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 transition">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            
+            <form onsubmit="submitTransfer(event)" class="p-6 space-y-4">
+                <div class="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300">
+                    Pasa dinero de <strong>Caja 1: Reserva</strong> hacia <strong>Caja 2: Efectivo</strong> cuando necesites reponer saldo operativo.
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Desde (Origen)</label>
+                        <select id="transferFromBox" required class="w-full px-3.5 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-xs font-semibold focus:outline-none"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Hacia (Destino)</label>
+                        <select id="transferToBox" required class="w-full px-3.5 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-xs font-semibold focus:outline-none"></select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Monto a Transferir (Q)</label>
+                    <div class="relative">
+                        <span class="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-zinc-400">Q</span>
+                        <input type="number" id="transferAmount" step="0.01" min="0.01" required placeholder="400.00" class="w-full pl-9 pr-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 font-display text-lg font-bold focus:outline-none">
+                    </div>
+                    <div class="flex gap-2 mt-2">
+                        <button type="button" onclick="document.getElementById('transferAmount').value = 200" class="text-xs px-3 py-1 rounded-full bg-canvas-subtle dark:bg-canvas-elevatedDark hover:bg-zinc-200 dark:hover:bg-zinc-700 font-semibold">+ Q200</button>
+                        <button type="button" onclick="document.getElementById('transferAmount').value = 400" class="text-xs px-3 py-1 rounded-full bg-canvas-subtle dark:bg-canvas-elevatedDark hover:bg-zinc-200 dark:hover:bg-zinc-700 font-semibold">+ Q400</button>
+                        <button type="button" onclick="document.getElementById('transferAmount').value = 500" class="text-xs px-3 py-1 rounded-full bg-canvas-subtle dark:bg-canvas-elevatedDark hover:bg-zinc-200 dark:hover:bg-zinc-700 font-semibold">+ Q500</button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Motivo / Asunto</label>
+                    <input type="text" id="transferSubject" required value="Reposición de efectivo para gastos diarios" class="w-full px-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-sm focus:outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Fecha y Hora</label>
+                    <input type="datetime-local" id="transferDate" required class="w-full px-4 py-2 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-sm focus:outline-none">
+                </div>
+
+                <div class="pt-2 flex items-center justify-end gap-2">
+                    <button type="button" onclick="closeModal('transferModal')" class="px-4 py-2.5 rounded-full text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition">Cancelar</button>
+                    <button type="submit" class="px-5 py-2.5 rounded-full text-xs font-bold text-white bg-zinc-900 dark:bg-white dark:text-zinc-900 shadow-sm transition">Realizar Transferencia</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 3. Modal Crear / Editar Caja -->
+    <div id="boxModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-canvas-cardDark rounded-3xl max-w-md w-full border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden">
+            <div class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+                <h3 id="boxModalTitle" class="font-display font-bold text-lg flex items-center gap-2 text-zinc-900 dark:text-white">
+                    <i data-lucide="package-plus" class="w-5 h-5 text-amber-500"></i>
+                    <span>Añadir Nueva Caja</span>
+                </h3>
+                <button onclick="closeModal('boxModal')" class="p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 transition">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            
+            <form onsubmit="submitBox(event)" class="p-6 space-y-4">
+                <input type="hidden" id="boxEditId" value="">
+                
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Nombre de la Caja</label>
+                    <input type="text" id="boxName" required placeholder="Ej. Caja 4: Herramientas Nuevas" class="w-full px-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-sm font-medium focus:outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Descripción / Fin Específico</label>
+                    <input type="text" id="boxDesc" placeholder="Ej. Ahorro para maquinaria o gastos de envío" class="w-full px-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-sm focus:outline-none">
+                </div>
+
+                <div id="boxInitialBalanceContainer">
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Saldo Inicial (Q)</label>
+                    <input type="number" id="boxInitialBalance" step="0.01" min="0" value="0" class="w-full px-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 font-display text-sm font-bold focus:outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Alerta de Saldo Mínimo (Opcional - Q)</label>
+                    <input type="number" id="boxMinThreshold" step="1" min="0" placeholder="Ej. 400 (0 para desactivar)" class="w-full px-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-sm focus:outline-none">
+                </div>
+
+                <div class="p-3.5 rounded-2xl bg-sky-500/10 border border-sky-500/20">
+                    <label class="flex items-start gap-2.5 cursor-pointer">
+                        <input type="checkbox" id="boxExcludeFromTotal" class="mt-0.5 rounded text-sky-600 focus:ring-sky-500">
+                        <span class="text-xs text-zinc-700 dark:text-zinc-300">
+                            <strong>Dinero aparte (No sumar al total general)</strong><br>
+                            <span class="text-zinc-500 dark:text-zinc-400">Su saldo se controlará por separado y no se sumará en "Efectivo Total en Cajas".</span>
+                        </span>
+                    </label>
+                </div>
+
+                <div class="pt-2 flex items-center justify-between gap-2">
+                    <button type="button" id="btnDeleteBox" onclick="deleteCurrentBox()" class="hidden px-3.5 py-2 rounded-full text-xs font-semibold text-rose-600 hover:bg-rose-500/10 transition">Eliminar Caja</button>
+                    <div class="flex items-center gap-2 ml-auto">
+                        <button type="button" onclick="closeModal('boxModal')" class="px-4 py-2.5 rounded-full text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition">Cancelar</button>
+                        <button type="submit" class="px-5 py-2.5 rounded-full text-xs font-bold text-white bg-zinc-900 dark:bg-white dark:text-zinc-900 shadow-sm transition">Guardar Caja</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 4. Modal Añadir Usuario a Plazos / Préstamo -->
+    <div id="pendingModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-canvas-cardDark rounded-3xl max-w-md w-full border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0">
+                <h3 class="font-display font-bold text-lg flex items-center gap-2 text-zinc-900 dark:text-white">
+                    <i data-lucide="user-plus" class="w-5 h-5 text-amber-500"></i>
+                    <span>Añadir Usuario a Plazos</span>
+                </h3>
+                <button onclick="closeModal('pendingModal')" class="p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 transition">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            
+            <form onsubmit="submitPending(event)" class="p-6 space-y-4 overflow-y-auto">
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Tipo de Registro</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="pendingCategory" value="installment" checked onchange="togglePendingTypeUI()" class="peer sr-only">
+                            <div class="p-2.5 text-center rounded-2xl border border-zinc-200 dark:border-zinc-700 peer-checked:border-zinc-900 dark:peer-checked:border-white peer-checked:bg-zinc-900 peer-checked:text-white dark:peer-checked:bg-white dark:peer-checked:text-zinc-900 text-xs font-bold transition">
+                                Usuario / Trabajo a Plazos
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="pendingCategory" value="loan" onchange="togglePendingTypeUI()" class="peer sr-only">
+                            <div class="p-2.5 text-center rounded-2xl border border-zinc-200 dark:border-zinc-700 peer-checked:border-zinc-900 dark:peer-checked:border-white peer-checked:bg-zinc-900 peer-checked:text-white dark:peer-checked:bg-white dark:peer-checked:text-zinc-900 text-xs font-bold transition">
+                                Dinero Prestado
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Usuario / Cliente y Concepto</label>
+                    <input type="text" id="pendingTitle" required placeholder="Ej. Don Carlos - Ropero 2 puertas" class="w-full px-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-sm focus:outline-none">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Monto Total (Q)</label>
+                        <input type="number" id="pendingTotal" step="0.01" min="0.01" required oninput="recalculateInstallmentPreview()" placeholder="900.00" class="w-full px-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-sm font-bold focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Ya Pagado / Enganche (Q)</label>
+                        <input type="number" id="pendingInitialPaid" step="0.01" min="0" value="0" oninput="recalculateInstallmentPreview()" placeholder="0.00" class="w-full px-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-sm font-bold focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Cantidad de Plazos (Meses)</label>
+                        <input type="number" id="pendingInstallmentsCount" step="1" min="1" value="6" required oninput="recalculateInstallmentPreview()" class="w-full px-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-sm font-bold focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Cuota Mensual (Q)</label>
+                        <input type="number" id="pendingMonthlyQuota" step="0.01" min="0.01" required placeholder="150.00" class="w-full px-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-sm font-bold text-amber-600 dark:text-amber-400 focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Caja Destino (Por defecto Efectivo)</label>
+                    <select id="pendingBoxId" required class="w-full px-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-sm font-medium focus:outline-none"></select>
+                </div>
+
+                <div id="loanDeductOption" class="hidden p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20">
+                    <label class="flex items-start gap-2.5 cursor-pointer">
+                        <input type="checkbox" id="pendingDeductNow" checked class="mt-0.5 rounded text-zinc-900">
+                        <span class="text-xs text-zinc-700 dark:text-zinc-300">
+                            <strong>Descontar este préstamo de la caja ahora</strong><br>
+                            <span class="text-zinc-500 dark:text-zinc-400">Restará el monto prestado de la caja seleccionada y lo registrará en el historial.</span>
+                        </span>
+                    </label>
+                </div>
+
+                <div id="installmentCreditOption" class="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+                    <label class="flex items-start gap-2.5 cursor-pointer">
+                        <input type="checkbox" id="pendingCreditInitial" checked class="mt-0.5 rounded text-emerald-600">
+                        <span class="text-xs text-zinc-700 dark:text-zinc-300">
+                            <strong>Ingresar el pago inicial a la caja</strong><br>
+                            <span class="text-zinc-500 dark:text-zinc-400">Si el usuario ya pagó una parte hoy, se sumará automáticamente a la caja elegida.</span>
+                        </span>
+                    </label>
+                </div>
+
+                <div class="pt-2 flex items-center justify-end gap-2">
+                    <button type="button" onclick="closeModal('pendingModal')" class="px-4 py-2.5 rounded-full text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition">Cancelar</button>
+                    <button type="submit" class="px-5 py-2.5 rounded-full text-xs font-bold text-white bg-zinc-900 dark:bg-white dark:text-zinc-900 shadow-sm transition">Guardar Usuario</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 5. Modal Registrar Abono / Pagar Plazo Personalizado -->
+    <div id="installmentPayModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-canvas-cardDark rounded-3xl max-w-md w-full border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden">
+            <div class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+                <h3 class="font-display font-bold text-lg flex items-center gap-2 text-zinc-900 dark:text-white">
+                    <i data-lucide="badge-dollar-sign" class="w-5 h-5 text-emerald-500"></i>
+                    <span>Pagar Plazo / Abono</span>
+                </h3>
+                <button onclick="closeModal('installmentPayModal')" class="p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 transition">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            
+            <form onsubmit="submitInstallmentPayment(event)" class="p-6 space-y-4">
+                <input type="hidden" id="payPendingId">
+                
+                <div class="p-4 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 space-y-1">
+                    <p id="payPendingTitle" class="font-bold text-sm text-zinc-900 dark:text-white">Concepto</p>
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-zinc-500 dark:text-zinc-400">Cuota mensual pactada:</span>
+                        <span id="payMonthlyQuotaInfo" class="font-bold text-emerald-600 dark:text-emerald-400">Q 0.00</span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-zinc-500 dark:text-zinc-400">Saldo pendiente total:</span>
+                        <span id="payPendingRemaining" class="font-extrabold text-amber-600 dark:text-amber-400">Q 0.00</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Monto a Integrar (Q)</label>
+                    <div class="relative">
+                        <span class="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-zinc-400">Q</span>
+                        <input type="number" id="payAmount" step="0.01" min="0.01" required class="w-full pl-9 pr-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 font-display text-lg font-bold focus:outline-none">
+                    </div>
+                    <div class="flex items-center gap-3 mt-1.5">
+                        <button type="button" onclick="setMonthlyQuotaPayment()" class="text-xs font-semibold text-amber-600 dark:text-amber-400 hover:underline">
+                            Usar cuota mensual
+                        </button>
+                        <span class="text-zinc-300 dark:text-zinc-700">|</span>
+                        <button type="button" onclick="setFullRemainingPayment()" class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline">
+                            Liquidar saldo completo
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Ingresar dinero a la Caja (Por defecto Efectivo)</label>
+                    <select id="payTargetBoxId" required class="w-full px-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-sm font-medium focus:outline-none"></select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Mes / Nota del Plazo</label>
+                    <input type="text" id="payNote" placeholder="Ej. Plazo Noviembre 2026" class="w-full px-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-sm focus:outline-none">
+                </div>
+
+                <div class="pt-2 flex items-center justify-end gap-2">
+                    <button type="button" onclick="closeModal('installmentPayModal')" class="px-4 py-2.5 rounded-full text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition">Cancelar</button>
+                    <button type="submit" class="px-5 py-2.5 rounded-full text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition">Confirmar Pago a Efectivo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 6. Modal Crear / Editar Proyecto -->
+    <div id="projectModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-canvas-cardDark rounded-3xl max-w-md w-full border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden">
+            <div class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+                <h3 id="projectModalTitle" class="font-display font-bold text-lg flex items-center gap-2 text-zinc-900 dark:text-white">
+                    <i data-lucide="folder-plus" class="w-5 h-5 text-amber-500"></i>
+                    <span>Nuevo Proyecto</span>
+                </h3>
+                <button onclick="closeModal('projectModal')" class="p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 transition">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            
+            <form onsubmit="submitProject(event)" class="p-6 space-y-4">
+                <input type="hidden" id="projectModalMode" value="create">
+                
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Nombre del Proyecto</label>
+                    <input type="text" id="projectNameInput" required placeholder="Ej. Finanzas Personales, Proyecto Obra X..." class="w-full px-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-sm font-medium focus:outline-none">
+                </div>
+
+                <div id="projectTemplateContainer">
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Estructura Inicial de Cajas</label>
+                    <select id="projectTemplate" class="w-full px-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-sm focus:outline-none">
+                        <option value="carpentry">Estructura 3 Cajas (Reserva, Efectivo Operativo, Fin Específico)</option>
+                        <option value="basic">1 Caja General Inicial</option>
+                    </select>
+                </div>
+
+                <div class="pt-2 flex items-center justify-end gap-2">
+                    <button type="button" onclick="closeModal('projectModal')" class="px-4 py-2.5 rounded-full text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition">Cancelar</button>
+                    <button type="submit" class="px-5 py-2.5 rounded-full text-xs font-bold text-white bg-zinc-900 dark:bg-white dark:text-zinc-900 shadow-sm transition">Guardar Proyecto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 7. Modal de Confirmación Personalizado -->
+    <div id="confirmModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-canvas-cardDark rounded-3xl max-w-sm w-full border border-zinc-200 dark:border-zinc-800 shadow-2xl p-6 text-center space-y-4">
+            <div class="w-12 h-12 rounded-full bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto">
+                <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h4 id="confirmTitle" class="font-display text-lg font-bold text-zinc-900 dark:text-white">¿Estás seguro?</h4>
+                <p id="confirmMessage" class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Esta acción no se puede deshacer.</p>
+            </div>
+            <div class="flex items-center justify-center gap-2 pt-2">
+                <button onclick="closeModal('confirmModal')" class="flex-1 px-4 py-2.5 rounded-full text-xs font-semibold bg-canvas-subtle dark:bg-canvas-elevatedDark hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition">Cancelar</button>
+                <button id="confirmActionBtn" class="flex-1 px-4 py-2.5 rounded-full text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white transition">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 8. Modal Añadir / Editar Material con Multiprecios de Ferreterías -->
+    <div id="materialModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-canvas-cardDark rounded-3xl max-w-lg w-full border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0">
+                <h3 id="materialModalTitle" class="font-display font-bold text-lg flex items-center gap-2 text-zinc-900 dark:text-white">
+                    <i data-lucide="hammer" class="w-5 h-5 text-sky-500"></i>
+                    <span>Añadir Material o Insumo</span>
+                </h3>
+                <button onclick="closeModal('materialModal')" class="p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 transition">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <form onsubmit="submitMaterial(event)" class="p-6 space-y-4 overflow-y-auto">
+                <input type="hidden" id="materialEditId" value="">
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Nombre del Material</label>
+                        <input type="text" id="materialName" required placeholder="Ej. Tabla de pino 1x12x8, Barniz mate..." class="w-full px-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-sm font-medium focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">Unidad / Medida</label>
+                        <input type="text" id="materialUnit" required placeholder="Ej. Unidad, Galón" value="Unidad" class="w-full px-4 py-2.5 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-sm focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400">Precios por Ferretería (Comparativa)</label>
+                        <button type="button" onclick="addHardwarePriceRow()" class="text-xs font-bold text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1">
+                            <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+                            <span>Agregar otra ferretería</span>
+                        </button>
+                    </div>
+                    <div id="hardwarePricesList" class="space-y-2">
+                    </div>
+                </div>
+
+                <div class="pt-2 flex items-center justify-end gap-2">
+                    <button type="button" onclick="closeModal('materialModal')" class="px-4 py-2.5 rounded-full text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition">Cancelar</button>
+                    <button type="submit" class="px-5 py-2.5 rounded-full text-xs font-bold text-white bg-zinc-900 dark:bg-white dark:text-zinc-900 shadow-sm transition">Guardar Material</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 9. Modal Sincronización en la Nube con Google (Firebase) -->
+    <div id="cloudModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-canvas-cardDark rounded-3xl max-w-md w-full border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0">
+                <h3 class="font-display font-bold text-lg flex items-center gap-2 text-zinc-900 dark:text-white">
+                    <i data-lucide="cloud" class="w-5 h-5 text-sky-500"></i>
+                    <span>Cuenta Google & Nube</span>
+                </h3>
+                <button onclick="closeModal('cloudModal')" class="p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 transition">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4 overflow-y-auto">
+                <p class="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                    Conecta tu proyecto gratuito de <strong>Firebase (Google)</strong> para sincronizar tus cajas en tiempo real entre tu Mac, iPhone y otros dispositivos. Al iniciar sesión mostrará tu nombre y foto de Google.
+                </p>
+
+                <!-- Estado de sesión actual -->
+                <div id="cloudAuthBox" class="p-4 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 space-y-3">
+                    <div id="cloudSignedOutView" class="space-y-3">
+                        <p class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Estado: <span class="text-amber-500 font-bold">Desconectado (Solo en este navegador)</span></p>
+                        <button type="button" onclick="signInWithGoogle()" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-zinc-900 hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-zinc-900 font-bold text-xs shadow-sm transition">
+                            <i data-lucide="log-in" class="w-4 h-4"></i>
+                            <span>Iniciar sesión con Google</span>
+                        </button>
+                    </div>
+
+                    <div id="cloudSignedInView" class="hidden space-y-3">
+                        <div class="flex items-center gap-3">
+                            <img id="modalUserAvatar" src="" alt="Avatar" class="w-10 h-10 rounded-full object-cover border border-zinc-300 dark:border-zinc-700 hidden">
+                            <div id="modalUserAvatarFallback" class="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-sm">
+                                G
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <span class="text-[10px] uppercase tracking-wider font-bold text-emerald-500 block">Cuenta Conectada</span>
+                                <p id="cloudUserName" class="text-sm font-bold text-zinc-900 dark:text-white truncate">Usuario Google</p>
+                                <p id="cloudUserEmail" class="text-xs text-zinc-500 dark:text-zinc-400 truncate">usuario@gmail.com</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-2 pt-1">
+                            <button type="button" onclick="forcePushToCloud()" class="flex-1 px-3 py-2 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-xs font-bold transition">
+                                Subir datos locales
+                            </button>
+                            <button type="button" onclick="signOutGoogle()" class="px-3.5 py-2 rounded-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-bold transition">
+                                Salir
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Configuración de Firebase -->
+                <div class="space-y-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                    <label class="block text-xs font-semibold text-zinc-500 dark:text-zinc-400">Configuración Firebase (JSON o Objeto JS)</label>
+                    <textarea id="firebaseConfigInput" rows="5" placeholder='Pega aquí tu firebaseConfig de Firebase Console:
+{
+  "apiKey": "AIzaSy...",
+  "authDomain": "tu-app.firebaseapp.com",
+  "projectId": "tu-app"
+}' class="w-full p-3 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-xs font-mono focus:outline-none"></textarea>
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-[11px] text-zinc-400">Requiere abrir desde https:// (GitHub Pages).</span>
+                        <button type="button" onclick="saveFirebaseConfig()" class="px-4 py-2 rounded-full bg-zinc-800 dark:bg-zinc-700 hover:bg-zinc-700 dark:hover:bg-zinc-600 text-white text-xs font-bold transition">
+                            Guardar Config
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- LÓGICA JAVASCRIPT Y PERSISTENCIA           -->
+    <!-- ========================================== -->
+    <script>
+        const STORAGE_KEY = 'gestor_cajas_finanzas_v1';
+        const FIREBASE_CFG_KEY = 'gestor_cajas_firebase_cfg_v1';
+        const DEFAULT_FIREBASE_CONFIG = null;
+
+        let firebaseDb = null;
+        let firebaseAuth = null;
+        let currentUser = null;
+        let unsubscribeSnapshot = null;
+        let isApplyingRemoteUpdate = false;
+
+        let appState = {
+            theme: 'dark',
+            activeProjectId: 'proj_default',
+            projects: []
+        };
+
+        let pendingConfirmCallback = null;
+
+        // ==========================================
+        // INICIALIZACIÓN LIMPIA Y GENÉRICA
+        // ==========================================
+        function getDefaultState() {
+            return {
+                theme: 'dark',
+                activeProjectId: 'proj_default',
+                projects: [
+                    {
+                        id: 'proj_default',
+                        name: 'Mi Proyecto',
+                        boxes: [
+                            {
+                                id: 'box_1',
+                                name: 'Caja 1: Reserva',
+                                description: 'Fondo principal reservado',
+                                balance: 0,
+                                minThreshold: 0,
+                                color: 'emerald',
+                                isCore: true,
+                                excludeFromTotal: false
+                            },
+                            {
+                                id: 'box_2',
+                                name: 'Caja 2: Efectivo Operativo',
+                                description: 'Efectivo en billetera para gastos diarios y materiales',
+                                balance: 0,
+                                minThreshold: 400,
+                                color: 'amber',
+                                isCore: true,
+                                excludeFromTotal: false
+                            },
+                            {
+                                id: 'box_3',
+                                name: 'Caja 3: Fin Específico',
+                                description: 'Dinero apartado para un objetivo concreto',
+                                balance: 0,
+                                minThreshold: 0,
+                                color: 'blue',
+                                isCore: true,
+                                excludeFromTotal: true
+                            }
+                        ],
+                        transactions: [],
+                        pendingItems: [],
+                        materials: []
+                    }
+                ]
+            };
+        }
+
+        function normalizeProjects(projects) {
+            projects.forEach(proj => {
+                if (Array.isArray(proj.boxes)) {
+                    proj.boxes.forEach(box => {
+                        if (typeof box.excludeFromTotal !== 'boolean') {
+                            box.excludeFromTotal = (box.id === 'box_3' || /fin\s*espec[ií]fico/i.test(box.name));
+                        }
+                    });
+                }
+                if (!Array.isArray(proj.transactions)) proj.transactions = [];
+                if (!Array.isArray(proj.pendingItems)) {
+                    proj.pendingItems = [];
+                } else {
+                    proj.pendingItems.forEach(item => {
+                        if (!item.installmentsCount || item.installmentsCount < 1) {
+                            item.installmentsCount = 1;
+                        }
+                        if (typeof item.monthlyQuota !== 'number' || item.monthlyQuota <= 0) {
+                            const rem = Math.max(0, (item.totalAmount || 0) - (item.paidAmount || 0));
+                            item.monthlyQuota = rem > 0 ? rem : (item.totalAmount || 0);
+                        }
+                    });
+                }
+                if (!Array.isArray(proj.materials)) proj.materials = [];
+            });
+        }
+
+        function loadState() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && Array.isArray(parsed.projects) && parsed.projects.length > 0) {
+                        normalizeProjects(parsed.projects);
+                        appState = parsed;
+                        saveState();
+                    } else {
+                        appState = getDefaultState();
+                        saveState();
+                    }
+                } else {
+                    appState = getDefaultState();
+                    saveState();
+                }
+            } catch (e) {
+                console.error('Error cargando localStorage:', e);
+                appState = getDefaultState();
+            }
+        }
+
+        function saveState() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+                if (!isApplyingRemoteUpdate) {
+                    syncStateToCloud();
+                }
+            } catch (e) {
+                showToast('Error al guardar en el navegador. Revisa el espacio disponible.', 'error');
+            }
+        }
+
+        function getActiveProject() {
+            let proj = appState.projects.find(p => p.id === appState.activeProjectId);
+            if (!proj && appState.projects.length > 0) {
+                proj = appState.projects[0];
+                appState.activeProjectId = proj.id;
+            }
+            return proj;
+        }
+
+        // ==========================================
+        // UTILIDADES DE FORMATO Y FECHA
+        // ==========================================
+        function formatQ(amount) {
+            const num = parseFloat(amount) || 0;
+            return 'Q ' + num.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function getLocalDateTimeString(dateObj = new Date()) {
+            const pad = (n) => String(n).padStart(2, '0');
+            const year = dateObj.getFullYear();
+            const month = pad(dateObj.getMonth() + 1);
+            const day = pad(dateObj.getDate());
+            const hours = pad(dateObj.getHours());
+            const minutes = pad(dateObj.getMinutes());
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+
+        function formatDisplayDate(isoString) {
+            if (!isoString) return '';
+            try {
+                const d = new Date(isoString);
+                if (isNaN(d.getTime())) return isoString;
+                return d.toLocaleDateString('es-GT', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric'
+                }) + ' • ' + d.toLocaleTimeString('es-GT', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true
+                });
+            } catch (e) {
+                return isoString;
+            }
+        }
+
+        function generateId(prefix = 'id') {
+            return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        }
+
+        // ==========================================
+        // RENDERIZADO PRINCIPAL DE LA INTERFAZ
+        // ==========================================
+        function renderAll() {
+            applyTheme();
+            renderProjectSelector();
+            renderKPIs();
+            renderBoxes();
+            updateBoxSelects();
+            renderHistory();
+            renderPending();
+            renderMaterials();
+            lucide.createIcons();
+        }
+
+        function applyTheme() {
+            const html = document.documentElement;
+            const icon = document.getElementById('themeIcon');
+            if (appState.theme === 'dark') {
+                html.classList.add('dark');
+                if (icon) icon.setAttribute('data-lucide', 'sun');
+            } else {
+                html.classList.remove('dark');
+                if (icon) icon.setAttribute('data-lucide', 'moon');
+            }
+        }
+
+        function toggleTheme() {
+            appState.theme = appState.theme === 'dark' ? 'light' : 'dark';
+            saveState();
+            applyTheme();
+            lucide.createIcons();
+        }
+
+        function renderProjectSelector() {
+            const selector = document.getElementById('projectSelector');
+            selector.innerHTML = '';
+            appState.projects.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = p.name;
+                if (p.id === appState.activeProjectId) opt.selected = true;
+                selector.appendChild(opt);
+            });
+
+            const activeProj = getActiveProject();
+            const heroTitle = document.getElementById('heroProjectTitle');
+            if (heroTitle && activeProj) {
+                heroTitle.textContent = activeProj.name;
+            }
+
+            const btnDel = document.getElementById('btnDeleteProject');
+            if (appState.projects.length <= 1) {
+                btnDel.classList.add('opacity-40', 'pointer-events-none');
+            } else {
+                btnDel.classList.remove('opacity-40', 'pointer-events-none');
+            }
+        }
+
+        function renderKPIs() {
+            const proj = getActiveProject();
+            if (!proj) return;
+
+            const includedBoxes = proj.boxes.filter(b => !b.excludeFromTotal);
+            const excludedBoxes = proj.boxes.filter(b => b.excludeFromTotal);
+
+            const totalBoxes = includedBoxes.reduce((sum, b) => sum + (parseFloat(b.balance) || 0), 0);
+            const totalExcluded = excludedBoxes.reduce((sum, b) => sum + (parseFloat(b.balance) || 0), 0);
+            
+            const activePending = proj.pendingItems.filter(item => (item.totalAmount - item.paidAmount) > 0.009);
+            const totalPending = activePending.reduce((sum, item) => sum + (item.totalAmount - item.paidAmount), 0);
+
+            const grandTotal = totalBoxes + totalPending;
+
+            document.getElementById('kpiTotalBoxes').textContent = formatQ(totalBoxes);
+            const boxCountLabel = `${includedBoxes.length} ${includedBoxes.length === 1 ? 'caja incluida' : 'cajas incluidas'}`;
+            const excludedSuffix = excludedBoxes.length > 0 ? ` • ${excludedBoxes.length} aparte (${formatQ(totalExcluded)})` : '';
+            document.getElementById('kpiBoxCount').textContent = boxCountLabel + excludedSuffix;
+            
+            document.getElementById('kpiTotalPending').textContent = formatQ(totalPending);
+            document.getElementById('kpiPendingCount').textContent = `${activePending.length} ${activePending.length === 1 ? 'cuenta pendiente' : 'cuentas pendientes'}`;
+            
+            document.getElementById('kpiGrandTotal').textContent = formatQ(grandTotal);
+
+            document.getElementById('badgeHistoryCount').textContent = proj.transactions.length;
+            document.getElementById('badgePendingCount').textContent = activePending.length;
+            document.getElementById('badgeMaterialsCount').textContent = (proj.materials || []).length;
+        }
+
+        function renderBoxes() {
+            const proj = getActiveProject();
+            const grid = document.getElementById('boxesGrid');
+            grid.innerHTML = '';
+
+            proj.boxes.forEach((box, index) => {
+                const hasActivity = proj.transactions.length > 0 || box.balance > 0;
+                const isLow = hasActivity && box.minThreshold > 0 && box.balance < box.minThreshold;
+                const isExcluded = Boolean(box.excludeFromTotal);
+                
+                let dotColor = 'bg-violet-400';
+                let iconBg = 'bg-violet-500/15 text-violet-600 dark:text-violet-400';
+                let iconName = 'box';
+                if (index === 0) {
+                    dotColor = 'bg-emerald-400';
+                    iconBg = 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400';
+                    iconName = 'shield-check';
+                } else if (index === 1) {
+                    dotColor = 'bg-amber-400';
+                    iconBg = 'bg-amber-500/15 text-amber-600 dark:text-amber-400';
+                    iconName = 'wallet';
+                } else if (index === 2 || isExcluded) {
+                    dotColor = 'bg-sky-400';
+                    iconBg = 'bg-sky-500/15 text-sky-600 dark:text-sky-400';
+                    iconName = 'target';
+                }
+
+                const card = document.createElement('div');
+                card.className = `relative bg-canvas-subtle dark:bg-canvas-cardDark rounded-3xl p-6 border transition-all flex flex-col justify-between ${
+                    isLow 
+                    ? 'border-amber-500 alert-pulse' 
+                    : isExcluded
+                    ? 'border-sky-500/30 hover:border-sky-500/60'
+                    : 'border-zinc-200/80 dark:border-zinc-800/80 hover:border-zinc-300 dark:hover:border-zinc-700'
+                }`;
+
+                card.innerHTML = `
+                    <div>
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-2xl ${iconBg} flex items-center justify-center shrink-0">
+                                    <i data-lucide="${iconName}" class="w-5 h-5"></i>
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-1.5 flex-wrap">
+                                        <span class="w-2 h-2 rounded-full ${dotColor}"></span>
+                                        <h4 class="font-display font-bold text-zinc-900 dark:text-white text-base leading-tight">${escapeHTML(box.name)}</h4>
+                                        ${isExcluded ? `
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/15 text-sky-600 dark:text-sky-400">
+                                                Aparte (No suma)
+                                            </span>
+                                        ` : ''}
+                                    </div>
+                                    <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-2">${escapeHTML(box.description || 'Sin descripción')}</p>
+                                </div>
+                            </div>
+                            <button onclick="openBoxModal('edit', '${box.id}')" title="Configurar o editar caja" class="p-2 rounded-full text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-white dark:hover:bg-zinc-800 transition">
+                                <i data-lucide="settings-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+
+                        <div class="mt-5 mb-4">
+                            <span class="text-[11px] text-zinc-400 font-semibold">Saldo Actual</span>
+                            <div class="font-display text-3xl font-extrabold tracking-tight ${box.balance < 0 ? 'text-rose-500' : 'text-zinc-900 dark:text-white'} mt-0.5">
+                                ${formatQ(box.balance)}
+                            </div>
+                        </div>
+
+                        ${isLow ? `
+                            <div class="mb-4 p-3 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-between gap-2">
+                                <div class="flex items-center gap-2 text-xs font-semibold text-amber-800 dark:text-amber-300">
+                                    <i data-lucide="alert-circle" class="w-4 h-4 text-amber-500 shrink-0"></i>
+                                    <span>Efectivo bajo (&lt; ${formatQ(box.minThreshold)})</span>
+                                </div>
+                                <button onclick="quickReplenish('${box.id}')" class="px-3 py-1 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold shrink-0 transition">
+                                    Reponer
+                                </button>
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    <div class="pt-3 border-t border-zinc-200/70 dark:border-zinc-800/80 flex items-center gap-2">
+                        <button onclick="openTxModal('expense', '${box.id}')" class="flex-1 flex items-center justify-center gap-1 py-2 px-3 rounded-full bg-white dark:bg-canvas-elevatedDark hover:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-zinc-200/80 dark:border-zinc-700/80 font-semibold text-xs transition">
+                            <i data-lucide="minus" class="w-3.5 h-3.5"></i>
+                            <span>Gasto</span>
+                        </button>
+                        <button onclick="openTxModal('income', '${box.id}')" class="flex-1 flex items-center justify-center gap-1 py-2 px-3 rounded-full bg-white dark:bg-canvas-elevatedDark hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-zinc-200/80 dark:border-zinc-700/80 font-semibold text-xs transition">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                            <span>Ingreso</span>
+                        </button>
+                        <button onclick="openTransferModal('${box.id}')" title="Transferir desde esta caja" class="p-2 rounded-full bg-white dark:bg-canvas-elevatedDark hover:bg-amber-500/15 text-zinc-600 dark:text-zinc-300 hover:text-amber-500 border border-zinc-200/80 dark:border-zinc-700/80 transition">
+                            <i data-lucide="arrow-right-left" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function updateBoxSelects() {
+            const proj = getActiveProject();
+            if (!proj) return;
+
+            const selectIds = ['txBoxId', 'transferFromBox', 'transferToBox', 'pendingBoxId', 'payTargetBoxId'];
+            selectIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const prevVal = el.value;
+                el.innerHTML = '';
+                proj.boxes.forEach(b => {
+                    const opt = document.createElement('option');
+                    opt.value = b.id;
+                    opt.textContent = `${b.name} (${formatQ(b.balance)})`;
+                    el.appendChild(opt);
+                });
+                if (prevVal && proj.boxes.some(b => b.id === prevVal)) {
+                    el.value = prevVal;
+                }
+            });
+
+            const filterBox = document.getElementById('filterBox');
+            const prevFilter = filterBox.value;
+            filterBox.innerHTML = '<option value="all">Todas las cajas</option>';
+            proj.boxes.forEach(b => {
+                const opt = document.createElement('option');
+                opt.value = b.id;
+                opt.textContent = b.name;
+                filterBox.appendChild(opt);
+            });
+            if (prevFilter) filterBox.value = prevFilter;
+        }
+
+        // ==========================================
+        // RENDERIZADO DE HISTORIAL Y FILTROS
+        // ==========================================
+        function renderHistory() {
+            const proj = getActiveProject();
+            const tbody = document.getElementById('historyTableBody');
+            
+            const search = document.getElementById('filterSearch').value.toLowerCase().trim();
+            const boxFilter = document.getElementById('filterBox').value;
+            const typeFilter = document.getElementById('filterType').value;
+            const dateFilter = document.getElementById('filterDate').value;
+
+            const sorted = [...proj.transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            const filtered = sorted.filter(tx => {
+                if (boxFilter !== 'all' && tx.boxId !== boxFilter) return false;
+                if (typeFilter !== 'all') {
+                    if (typeFilter === 'transfer' && !tx.type.startsWith('transfer')) return false;
+                    else if (typeFilter !== 'transfer' && tx.type !== typeFilter) return false;
+                }
+                if (dateFilter && !tx.date.startsWith(dateFilter)) return false;
+                if (search && !tx.subject.toLowerCase().includes(search)) return false;
+                return true;
+            });
+
+            let inSum = 0;
+            let outSum = 0;
+            filtered.forEach(tx => {
+                const isPositive = ['income', 'transfer_in', 'loan_in'].includes(tx.type);
+                if (isPositive) inSum += tx.amount;
+                else outSum += tx.amount;
+            });
+
+            document.getElementById('filteredCountText').textContent = `Mostrando ${filtered.length} de ${proj.transactions.length} movimientos`;
+            document.getElementById('filteredInTotal').textContent = formatQ(inSum);
+            document.getElementById('filteredOutTotal').textContent = formatQ(outSum);
+
+            tbody.innerHTML = '';
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="py-12 text-center text-zinc-400">
+                            <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                            <p class="text-sm font-semibold text-zinc-600 dark:text-zinc-300">Aún no hay movimientos registrados</p>
+                            <p class="text-xs mt-1">Usa "Registrar Ingreso" en cada caja para ingresar tus saldos iniciales.</p>
+                        </td>
+                    </tr>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            filtered.forEach(tx => {
+                const box = proj.boxes.find(b => b.id === tx.boxId);
+                const boxName = box ? box.name : 'Caja eliminada';
+
+                let badgeHtml = '';
+                let amountClass = '';
+                let sign = '';
+
+                switch (tx.type) {
+                    case 'income':
+                        badgeHtml = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"><i data-lucide="arrow-down-left" class="w-3 h-3"></i> Ingreso</span>`;
+                        amountClass = 'text-emerald-600 dark:text-emerald-400';
+                        sign = '+';
+                        break;
+                    case 'expense':
+                        badgeHtml = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400"><i data-lucide="arrow-up-right" class="w-3 h-3"></i> Gasto</span>`;
+                        amountClass = 'text-rose-600 dark:text-rose-400';
+                        sign = '-';
+                        break;
+                    case 'transfer_in':
+                        badgeHtml = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-500/10 text-sky-600 dark:text-sky-400"><i data-lucide="arrow-left-right" class="w-3 h-3"></i> Recibido</span>`;
+                        amountClass = 'text-sky-600 dark:text-sky-400';
+                        sign = '+';
+                        break;
+                    case 'transfer_out':
+                        badgeHtml = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400"><i data-lucide="arrow-left-right" class="w-3 h-3"></i> Enviado</span>`;
+                        amountClass = 'text-amber-600 dark:text-amber-400';
+                        sign = '-';
+                        break;
+                    case 'loan_out':
+                        badgeHtml = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-500/10 text-violet-600 dark:text-violet-400"><i data-lucide="hand-coins" class="w-3 h-3"></i> Préstamo</span>`;
+                        amountClass = 'text-rose-600 dark:text-rose-400';
+                        sign = '-';
+                        break;
+                    case 'loan_in':
+                        badgeHtml = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-500/10 text-teal-600 dark:text-teal-400"><i data-lucide="badge-dollar-sign" class="w-3 h-3"></i> Abono/Cuota</span>`;
+                        amountClass = 'text-emerald-600 dark:text-emerald-400';
+                        sign = '+';
+                        break;
+                }
+
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-canvas-subtle/60 dark:hover:bg-canvas-elevatedDark/40 transition';
+                tr.innerHTML = `
+                    <td class="py-3.5 px-4 whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">
+                        ${formatDisplayDate(tx.date)}
+                    </td>
+                    <td class="py-3.5 px-4 whitespace-nowrap font-semibold text-xs text-zinc-700 dark:text-zinc-300">
+                        ${escapeHTML(boxName)}
+                    </td>
+                    <td class="py-3.5 px-4 whitespace-nowrap">
+                        ${badgeHtml}
+                    </td>
+                    <td class="py-3.5 px-4 text-zinc-900 dark:text-zinc-100 font-medium">
+                        ${escapeHTML(tx.subject)}
+                    </td>
+                    <td class="py-3.5 px-4 whitespace-nowrap text-right font-display font-bold ${amountClass}">
+                        ${sign}${formatQ(tx.amount)}
+                    </td>
+                    <td class="py-3.5 px-4 whitespace-nowrap text-center">
+                        <button onclick="confirmDeleteTx('${tx.id}')" title="Eliminar registro y revertir saldo" class="p-1.5 rounded-full text-zinc-400 hover:text-rose-500 hover:bg-rose-500/10 transition">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            lucide.createIcons();
+        }
+
+        function clearHistoryFilters() {
+            document.getElementById('filterSearch').value = '';
+            document.getElementById('filterBox').value = 'all';
+            document.getElementById('filterType').value = 'all';
+            document.getElementById('filterDate').value = '';
+            renderHistory();
+        }
+
+        // ==========================================
+        // RENDERIZADO DE USUARIOS A PLAZOS / PRÉSTAMOS
+        // ==========================================
+        function renderPending() {
+            const proj = getActiveProject();
+            const grid = document.getElementById('pendingGrid');
+            const statusFilter = document.getElementById('filterPendingStatus').value;
+
+            const filtered = proj.pendingItems.filter(item => {
+                const remaining = item.totalAmount - item.paidAmount;
+                const isCompleted = remaining <= 0.009;
+                if (statusFilter === 'active') return !isCompleted;
+                if (statusFilter === 'completed') return isCompleted;
+                return true;
+            });
+
+            grid.innerHTML = '';
+
+            if (filtered.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-span-full py-12 text-center text-zinc-400 border border-dashed border-zinc-300 dark:border-zinc-800 rounded-3xl">
+                        <i data-lucide="users" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                        <p class="text-sm font-semibold text-zinc-600 dark:text-zinc-300">No hay usuarios a plazos ni préstamos pendientes</p>
+                        <p class="text-xs mt-1">Haz clic en "+ Añadir Usuario / Plazo" para registrar clientes y cobrar su cuota mensual directo a Efectivo.</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            filtered.forEach(item => {
+                const remaining = Math.max(0, item.totalAmount - item.paidAmount);
+                const isCompleted = remaining <= 0.009;
+                const percent = Math.min(100, Math.round((item.paidAmount / item.totalAmount) * 100));
+                const box = proj.boxes.find(b => b.id === item.boxId);
+                const boxName = box ? box.name : 'Caja 2: Efectivo Operativo';
+
+                const totalPlazos = item.installmentsCount || 1;
+                const quota = item.monthlyQuota || Math.round((item.totalAmount / totalPlazos) * 100) / 100;
+                const paidPlazos = quota > 0 ? Math.min(totalPlazos, Math.floor((item.paidAmount + 0.01) / quota)) : 0;
+                const nextInstallmentAmount = Math.min(remaining, quota);
+
+                const catBadge = item.category === 'loan'
+                    ? `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-violet-500/15 text-violet-600 dark:text-violet-400">Préstamo</span>`
+                    : `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400">A Plazos (${totalPlazos} meses)</span>`;
+
+                const card = document.createElement('div');
+                card.className = `p-5 rounded-3xl border ${isCompleted ? 'bg-canvas-subtle/50 dark:bg-canvas-elevatedDark/40 border-zinc-200 dark:border-zinc-800 opacity-80' : 'bg-canvas-subtle dark:bg-canvas-elevatedDark/60 border-zinc-200/80 dark:border-zinc-800'} flex flex-col justify-between space-y-4`;
+
+                card.innerHTML = `
+                    <div>
+                        <div class="flex items-start justify-between gap-2">
+                            <div>
+                                <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                                    ${catBadge}
+                                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200/70 dark:border-zinc-700">
+                                        Cuota: ${formatQ(quota)}/mes
+                                    </span>
+                                </div>
+                                <h5 class="font-display font-bold text-zinc-900 dark:text-white text-base">${escapeHTML(item.title)}</h5>
+                                <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Destino: <strong class="text-zinc-700 dark:text-zinc-300">${escapeHTML(boxName)}</strong> • Plazos cubiertos: <strong>${paidPlazos}/${totalPlazos}</strong></p>
+                            </div>
+                            <button onclick="confirmDeletePending('${item.id}')" title="Eliminar registro" class="p-1.5 rounded-full text-zinc-400 hover:text-rose-500 hover:bg-rose-500/10 transition">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+
+                        <div class="mt-4">
+                            <div class="flex justify-between text-xs mb-1.5">
+                                <span class="text-zinc-500 dark:text-zinc-400">Pagado: <strong class="text-emerald-600 dark:text-emerald-400">${formatQ(item.paidAmount)}</strong> de ${formatQ(item.totalAmount)}</span>
+                                <span class="font-bold text-zinc-800 dark:text-zinc-200">${percent}%</span>
+                            </div>
+                            <div class="w-full h-2 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                                <div class="h-full ${isCompleted ? 'bg-emerald-500' : 'bg-zinc-900 dark:bg-white'} rounded-full transition-all duration-300" style="width: ${percent}%"></div>
+                            </div>
+                        </div>
+
+                        ${item.payments && item.payments.length > 0 ? `
+                            <div class="mt-3 pt-2.5 border-t border-zinc-200/70 dark:border-zinc-800">
+                                <p class="text-[11px] font-semibold text-zinc-400 mb-1">Pagos registrados:</p>
+                                <div class="space-y-1 max-h-20 overflow-y-auto pr-1">
+                                    ${item.payments.slice().reverse().map(p => `
+                                        <div class="flex justify-between text-xs text-zinc-600 dark:text-zinc-300">
+                                            <span class="truncate pr-2">${formatDisplayDate(p.date).split('•')[0]} ${p.note ? '- ' + escapeHTML(p.note) : ''}</span>
+                                            <span class="font-semibold text-emerald-600 dark:text-emerald-400 shrink-0">+${formatQ(p.amount)}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    <div class="pt-3 border-t border-zinc-200/70 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <span class="text-[11px] text-zinc-400 block">Saldo Restante</span>
+                            <span class="font-display text-lg font-extrabold ${isCompleted ? 'text-emerald-500' : 'text-zinc-900 dark:text-white'}">
+                                ${isCompleted ? '¡Completado!' : formatQ(remaining)}
+                            </span>
+                        </div>
+
+                        ${!isCompleted ? `
+                            <div class="flex items-center gap-1.5">
+                                <button onclick="quickPayCurrentMonth('${item.id}')" title="Integrar cuota del mes actual directo a Efectivo" class="flex items-center gap-1.5 px-4 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition active:scale-95">
+                                    <i data-lucide="calendar-check" class="w-3.5 h-3.5"></i>
+                                    <span>Pagar Plazo (${formatQ(nextInstallmentAmount)})</span>
+                                </button>
+                                <button onclick="openInstallmentPayModal('${item.id}')" title="Personalizar monto o caja de abono" class="p-2 rounded-full bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 transition">
+                                    <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                        ` : `
+                            <span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
+                                <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Pagado
+                            </span>
+                        `}
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+
+            lucide.createIcons();
+        }
+
+        // ==========================================
+        // ACCIONES: MOVIMIENTOS (INGRESOS / GASTOS)
+        // ==========================================
+        function openTxModal(type, preselectedBoxId = null) {
+            const proj = getActiveProject();
+            if (!proj || proj.boxes.length === 0) {
+                showToast('Crea al menos una caja primero.', 'error');
+                return;
+            }
+
+            document.getElementById('txType').value = type;
+            document.getElementById('txAmount').value = '';
+            document.getElementById('txSubject').value = '';
+            document.getElementById('txDate').value = getLocalDateTimeString(new Date());
+
+            const title = document.getElementById('txModalTitle');
+            const btn = document.getElementById('txSubmitBtn');
+
+            if (type === 'expense') {
+                title.innerHTML = '<i data-lucide="minus-circle" class="w-5 h-5 text-rose-500"></i><span>Registrar Gasto</span>';
+                btn.textContent = 'Descontar Gasto';
+            } else {
+                title.innerHTML = '<i data-lucide="plus-circle" class="w-5 h-5 text-emerald-500"></i><span>Registrar Ingreso</span>';
+                btn.textContent = 'Sumar Ingreso';
+            }
+
+            updateBoxSelects();
+            const boxSelect = document.getElementById('txBoxId');
+            if (preselectedBoxId) {
+                boxSelect.value = preselectedBoxId;
+            } else if (type === 'expense' && proj.boxes.length >= 2) {
+                boxSelect.value = proj.boxes[1].id;
+            }
+
+            openModal('txModal');
+            lucide.createIcons();
+            setTimeout(() => document.getElementById('txAmount').focus(), 100);
+        }
+
+        function setTxSubject(text) {
+            document.getElementById('txSubject').value = text;
+        }
+
+        function submitTransaction(e) {
+            e.preventDefault();
+            const proj = getActiveProject();
+            const type = document.getElementById('txType').value;
+            const boxId = document.getElementById('txBoxId').value;
+            const amount = parseFloat(document.getElementById('txAmount').value);
+            const subject = document.getElementById('txSubject').value.trim();
+            const date = document.getElementById('txDate').value;
+
+            if (isNaN(amount) || amount <= 0) {
+                showToast('Ingresa un monto válido mayor a Q0.00', 'error');
+                return;
+            }
+
+            const box = proj.boxes.find(b => b.id === boxId);
+            if (!box) return;
+
+            if (type === 'expense') {
+                box.balance = Math.round((box.balance - amount) * 100) / 100;
+            } else {
+                box.balance = Math.round((box.balance + amount) * 100) / 100;
+            }
+
+            proj.transactions.push({
+                id: generateId('tx'),
+                date,
+                boxId,
+                type,
+                amount,
+                subject
+            });
+
+            saveState();
+            closeModal('txModal');
+            renderAll();
+
+            if (type === 'expense' && box.minThreshold > 0 && box.balance < box.minThreshold) {
+                showToast(`Aviso: ${box.name} bajó a ${formatQ(box.balance)}. Considera reponer desde Reserva.`, 'warning');
+            } else {
+                showToast(type === 'expense' ? `Gasto de ${formatQ(amount)} descontado.` : `Ingreso de ${formatQ(amount)} registrado.`, 'success');
+            }
+        }
+
+        function confirmDeleteTx(txId) {
+            const proj = getActiveProject();
+            const tx = proj.transactions.find(t => t.id === txId);
+            if (!tx) return;
+
+            openConfirm(
+                '¿Eliminar este movimiento?',
+                `Se eliminará "${tx.subject}" (${formatQ(tx.amount)}) y se revertirá el saldo en la caja correspondiente.`,
+                () => {
+                    const box = proj.boxes.find(b => b.id === tx.boxId);
+                    if (box) {
+                        const wasPositive = ['income', 'transfer_in', 'loan_in'].includes(tx.type);
+                        if (wasPositive) {
+                            box.balance = Math.round((box.balance - tx.amount) * 100) / 100;
+                        } else {
+                            box.balance = Math.round((box.balance + tx.amount) * 100) / 100;
+                        }
+                    }
+                    proj.transactions = proj.transactions.filter(t => t.id !== txId);
+                    saveState();
+                    renderAll();
+                    showToast('Movimiento eliminado y saldo ajustado.', 'success');
+                }
+            );
+        }
+
+        // ==========================================
+        // ACCIONES: TRANSFERENCIAS Y REPOSICIÓN
+        // ==========================================
+        function openTransferModal(fromBoxId = null, toBoxId = null, suggestedAmount = '') {
+            const proj = getActiveProject();
+            if (proj.boxes.length < 2) {
+                showToast('Necesitas al menos 2 cajas para hacer una transferencia.', 'error');
+                return;
+            }
+
+            updateBoxSelects();
+            const fromSel = document.getElementById('transferFromBox');
+            const toSel = document.getElementById('transferToBox');
+
+            if (fromBoxId) {
+                fromSel.value = fromBoxId;
+            } else {
+                fromSel.value = proj.boxes[0].id;
+            }
+
+            if (toBoxId) {
+                toSel.value = toBoxId;
+            } else {
+                const other = proj.boxes.find(b => b.id !== fromSel.value);
+                if (other) toSel.value = other.id;
+            }
+
+            document.getElementById('transferAmount').value = suggestedAmount;
+            document.getElementById('transferDate').value = getLocalDateTimeString(new Date());
+            openModal('transferModal');
+        }
+
+        function quickReplenish(targetBoxId) {
+            const proj = getActiveProject();
+            const targetBox = proj.boxes.find(b => b.id === targetBoxId);
+            const sourceBox = proj.boxes.find(b => b.id !== targetBoxId) || proj.boxes[0];
+            
+            let needed = 400;
+            if (targetBox && targetBox.minThreshold > 0) {
+                needed = Math.max(100, Math.round((targetBox.minThreshold + 100) - targetBox.balance));
+            }
+            openTransferModal(sourceBox.id, targetBoxId, needed);
+        }
+
+        function submitTransfer(e) {
+            e.preventDefault();
+            const proj = getActiveProject();
+            const fromId = document.getElementById('transferFromBox').value;
+            const toId = document.getElementById('transferToBox').value;
+            const amount = parseFloat(document.getElementById('transferAmount').value);
+            const subject = document.getElementById('transferSubject').value.trim();
+            const date = document.getElementById('transferDate').value;
+
+            if (fromId === toId) {
+                showToast('La caja de origen y destino deben ser diferentes.', 'error');
+                return;
+            }
+            if (isNaN(amount) || amount <= 0) {
+                showToast('Ingresa un monto válido.', 'error');
+                return;
+            }
+
+            const fromBox = proj.boxes.find(b => b.id === fromId);
+            const toBox = proj.boxes.find(b => b.id === toId);
+            if (!fromBox || !toBox) return;
+
+            fromBox.balance = Math.round((fromBox.balance - amount) * 100) / 100;
+            toBox.balance = Math.round((toBox.balance + amount) * 100) / 100;
+
+            proj.transactions.push({
+                id: generateId('tx'),
+                date,
+                boxId: fromId,
+                type: 'transfer_out',
+                amount,
+                subject: `Transferencia hacia ${toBox.name}: ${subject}`
+            });
+
+            proj.transactions.push({
+                id: generateId('tx'),
+                date,
+                boxId: toId,
+                type: 'transfer_in',
+                amount,
+                subject: `Recibido desde ${fromBox.name}: ${subject}`
+            });
+
+            saveState();
+            closeModal('transferModal');
+            renderAll();
+            showToast(`Transferencia de ${formatQ(amount)} completada con éxito.`, 'success');
+        }
+
+        // ==========================================
+        // ACCIONES: GESTIÓN DE CAJAS
+        // ==========================================
+        function openBoxModal(mode, boxId = null) {
+            const proj = getActiveProject();
+            const title = document.getElementById('boxModalTitle');
+            const editIdInput = document.getElementById('boxEditId');
+            const initialContainer = document.getElementById('boxInitialBalanceContainer');
+            const btnDelete = document.getElementById('btnDeleteBox');
+
+            if (mode === 'create') {
+                title.innerHTML = '<i data-lucide="package-plus" class="w-5 h-5 text-amber-500"></i><span>Añadir Nueva Caja</span>';
+                editIdInput.value = '';
+                document.getElementById('boxName').value = `Caja ${proj.boxes.length + 1}: `;
+                document.getElementById('boxDesc').value = '';
+                document.getElementById('boxInitialBalance').value = '0';
+                document.getElementById('boxMinThreshold').value = '0';
+                document.getElementById('boxExcludeFromTotal').checked = false;
+                initialContainer.classList.remove('hidden');
+                btnDelete.classList.add('hidden');
+            } else {
+                const box = proj.boxes.find(b => b.id === boxId);
+                if (!box) return;
+                title.innerHTML = '<i data-lucide="settings-2" class="w-5 h-5 text-amber-500"></i><span>Editar Caja</span>';
+                editIdInput.value = box.id;
+                document.getElementById('boxName').value = box.name;
+                document.getElementById('boxDesc').value = box.description || '';
+                document.getElementById('boxMinThreshold').value = box.minThreshold || 0;
+                document.getElementById('boxExcludeFromTotal').checked = Boolean(box.excludeFromTotal);
+                initialContainer.classList.add('hidden');
+                
+                if (proj.boxes.length > 1) {
+                    btnDelete.classList.remove('hidden');
+                } else {
+                    btnDelete.classList.add('hidden');
+                }
+            }
+
+            openModal('boxModal');
+            lucide.createIcons();
+        }
+
+        function submitBox(e) {
+            e.preventDefault();
+            const proj = getActiveProject();
+            const editId = document.getElementById('boxEditId').value;
+            const name = document.getElementById('boxName').value.trim();
+            const description = document.getElementById('boxDesc').value.trim();
+            const minThreshold = parseFloat(document.getElementById('boxMinThreshold').value) || 0;
+            const excludeFromTotal = document.getElementById('boxExcludeFromTotal').checked;
+
+            if (!editId) {
+                const initialBalance = parseFloat(document.getElementById('boxInitialBalance').value) || 0;
+                const newBoxId = generateId('box');
+                proj.boxes.push({
+                    id: newBoxId,
+                    name,
+                    description,
+                    balance: Math.round(initialBalance * 100) / 100,
+                    minThreshold,
+                    isCore: false,
+                    excludeFromTotal
+                });
+
+                if (initialBalance > 0) {
+                    proj.transactions.push({
+                        id: generateId('tx'),
+                        date: getLocalDateTimeString(new Date()),
+                        boxId: newBoxId,
+                        type: 'income',
+                        amount: initialBalance,
+                        subject: `Saldo inicial al crear ${name}`
+                    });
+                }
+                showToast(`Caja "${name}" añadida al proyecto.`, 'success');
+            } else {
+                const box = proj.boxes.find(b => b.id === editId);
+                if (box) {
+                    box.name = name;
+                    box.description = description;
+                    box.minThreshold = minThreshold;
+                    box.excludeFromTotal = excludeFromTotal;
+                    showToast('Caja actualizada.', 'success');
+                }
+            }
+
+            saveState();
+            closeModal('boxModal');
+            renderAll();
+        }
+
+        function deleteCurrentBox() {
+            const proj = getActiveProject();
+            const boxId = document.getElementById('boxEditId').value;
+            const box = proj.boxes.find(b => b.id === boxId);
+            if (!box || proj.boxes.length <= 1) return;
+
+            closeModal('boxModal');
+            openConfirm(
+                `¿Eliminar "${box.name}"?`,
+                'Se eliminará esta caja del proyecto. Los movimientos históricos conservarán su texto pero la caja ya no aparecerá en el tablero.',
+                () => {
+                    proj.boxes = proj.boxes.filter(b => b.id !== boxId);
+                    saveState();
+                    renderAll();
+                    showToast('Caja eliminada.', 'success');
+                }
+            );
+        }
+
+        // ==========================================
+        // ACCIONES: USUARIOS A PLAZOS / PRÉSTAMOS
+        // ==========================================
+        function openPendingModal() {
+            const proj = getActiveProject();
+            updateBoxSelects();
+            
+            const boxSel = document.getElementById('pendingBoxId');
+            if (proj.boxes.length >= 2) {
+                boxSel.value = proj.boxes[1].id;
+            }
+
+            document.getElementById('pendingTitle').value = '';
+            document.getElementById('pendingTotal').value = '';
+            document.getElementById('pendingInitialPaid').value = '0';
+            document.getElementById('pendingInstallmentsCount').value = '6';
+            document.getElementById('pendingMonthlyQuota').value = '';
+            document.querySelector('input[name="pendingCategory"][value="installment"]').checked = true;
+            togglePendingTypeUI();
+            openModal('pendingModal');
+        }
+
+        function recalculateInstallmentPreview() {
+            const total = parseFloat(document.getElementById('pendingTotal').value) || 0;
+            const initial = parseFloat(document.getElementById('pendingInitialPaid').value) || 0;
+            const count = parseInt(document.getElementById('pendingInstallmentsCount').value, 10) || 1;
+            const remaining = Math.max(0, total - initial);
+            if (remaining > 0 && count >= 1) {
+                const quota = Math.round((remaining / count) * 100) / 100;
+                document.getElementById('pendingMonthlyQuota').value = quota.toFixed(2);
+            }
+        }
+
+        function togglePendingTypeUI() {
+            const cat = document.querySelector('input[name="pendingCategory"]:checked').value;
+            const loanOpt = document.getElementById('loanDeductOption');
+            const instOpt = document.getElementById('installmentCreditOption');
+
+            if (cat === 'loan') {
+                loanOpt.classList.remove('hidden');
+                instOpt.classList.add('hidden');
+            } else {
+                loanOpt.classList.add('hidden');
+                instOpt.classList.remove('hidden');
+            }
+        }
+
+        function submitPending(e) {
+            e.preventDefault();
+            const proj = getActiveProject();
+            const category = document.querySelector('input[name="pendingCategory"]:checked').value;
+            const title = document.getElementById('pendingTitle').value.trim();
+            const totalAmount = parseFloat(document.getElementById('pendingTotal').value);
+            const initialPaid = parseFloat(document.getElementById('pendingInitialPaid').value) || 0;
+            const installmentsCount = parseInt(document.getElementById('pendingInstallmentsCount').value, 10) || 1;
+            const monthlyQuota = parseFloat(document.getElementById('pendingMonthlyQuota').value) || Math.round(((totalAmount - initialPaid) / installmentsCount) * 100) / 100;
+            const boxId = document.getElementById('pendingBoxId').value;
+            const nowISO = getLocalDateTimeString(new Date());
+
+            if (isNaN(totalAmount) || totalAmount <= 0) {
+                showToast('El monto total debe ser mayor a Q0.00', 'error');
+                return;
+            }
+            if (initialPaid > totalAmount) {
+                showToast('El pago inicial no puede superar el monto total.', 'error');
+                return;
+            }
+
+            const box = proj.boxes.find(b => b.id === boxId);
+            const payments = [];
+
+            if (initialPaid > 0) {
+                payments.push({
+                    date: nowISO,
+                    amount: initialPaid,
+                    note: 'Pago inicial / Enganche'
+                });
+            }
+
+            if (category === 'loan' && document.getElementById('pendingDeductNow').checked && box) {
+                const netLent = Math.round((totalAmount - initialPaid) * 100) / 100;
+                if (netLent > 0) {
+                    box.balance = Math.round((box.balance - netLent) * 100) / 100;
+                    proj.transactions.push({
+                        id: generateId('tx'),
+                        date: nowISO,
+                        boxId,
+                        type: 'loan_out',
+                        amount: netLent,
+                        subject: `Préstamo realizado: ${title}`
+                    });
+                }
+            }
+
+            if (category === 'installment' && initialPaid > 0 && document.getElementById('pendingCreditInitial').checked && box) {
+                box.balance = Math.round((box.balance + initialPaid) * 100) / 100;
+                proj.transactions.push({
+                    id: generateId('tx'),
+                    date: nowISO,
+                    boxId,
+                    type: 'loan_in',
+                    amount: initialPaid,
+                    subject: `Pago inicial: ${title}`
+                });
+            }
+
+            proj.pendingItems.unshift({
+                id: generateId('pend'),
+                category,
+                title,
+                totalAmount,
+                paidAmount: initialPaid,
+                installmentsCount,
+                monthlyQuota,
+                boxId,
+                createdAt: nowISO,
+                payments
+            });
+
+            saveState();
+            closeModal('pendingModal');
+            renderAll();
+            switchTab('pending');
+            showToast('Usuario a plazos guardado correctamente.', 'success');
+        }
+
+        function getCurrentMonthLabel() {
+            const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+            const now = new Date();
+            return `Plazo ${months[now.getMonth()]} ${now.getFullYear()}`;
+        }
+
+        function quickPayCurrentMonth(pendingId) {
+            const proj = getActiveProject();
+            const item = proj.pendingItems.find(i => i.id === pendingId);
+            if (!item) return;
+
+            const remaining = Math.max(0, Math.round((item.totalAmount - item.paidAmount) * 100) / 100);
+            if (remaining <= 0) return;
+
+            const quota = item.monthlyQuota || remaining;
+            const amountToPay = Math.min(remaining, quota);
+            const targetBox = proj.boxes.find(b => b.id === item.boxId) || (proj.boxes.length >= 2 ? proj.boxes[1] : proj.boxes[0]);
+            const monthNote = getCurrentMonthLabel();
+
+            openConfirm(
+                `¿Integrar pago de ${formatQ(amountToPay)}?`,
+                `Se sumará ${formatQ(amountToPay)} (${monthNote}) de "${item.title}" directamente hacia ${targetBox ? targetBox.name : 'Efectivo'}.`,
+                () => {
+                    const nowISO = getLocalDateTimeString(new Date());
+                    item.paidAmount = Math.round((item.paidAmount + amountToPay) * 100) / 100;
+                    if (!item.payments) item.payments = [];
+                    item.payments.push({ date: nowISO, amount: amountToPay, note: monthNote });
+
+                    if (targetBox) {
+                        targetBox.balance = Math.round((targetBox.balance + amountToPay) * 100) / 100;
+                        const prefix = item.category === 'loan' ? 'Reintegro préstamo' : 'Pago plazo mensual';
+                        proj.transactions.push({
+                            id: generateId('tx'),
+                            date: nowISO,
+                            boxId: targetBox.id,
+                            type: 'loan_in',
+                            amount: amountToPay,
+                            subject: `${prefix}: ${item.title} (${monthNote})`
+                        });
+                    }
+
+                    saveState();
+                    renderAll();
+                    showToast(`Pago de ${formatQ(amountToPay)} (${monthNote}) integrado a ${targetBox ? targetBox.name : 'Efectivo'}.`, 'success');
+                }
+            );
+        }
+
+        function openInstallmentPayModal(pendingId) {
+            const proj = getActiveProject();
+            const item = proj.pendingItems.find(i => i.id === pendingId);
+            if (!item) return;
+
+            const remaining = Math.max(0, Math.round((item.totalAmount - item.paidAmount) * 100) / 100);
+            const quota = item.monthlyQuota || remaining;
+            const defaultPay = Math.min(remaining, quota);
+
+            document.getElementById('payPendingId').value = item.id;
+            document.getElementById('payPendingTitle').textContent = item.title;
+            document.getElementById('payMonthlyQuotaInfo').textContent = formatQ(quota);
+            document.getElementById('payPendingRemaining').textContent = formatQ(remaining);
+            document.getElementById('payAmount').value = defaultPay;
+            document.getElementById('payAmount').max = remaining;
+            document.getElementById('payNote').value = getCurrentMonthLabel();
+
+            updateBoxSelects();
+            const boxSel = document.getElementById('payTargetBoxId');
+            if (item.boxId && proj.boxes.some(b => b.id === item.boxId)) {
+                boxSel.value = item.boxId;
+            } else if (proj.boxes.length >= 2) {
+                boxSel.value = proj.boxes[1].id;
+            }
+
+            openModal('installmentPayModal');
+        }
+
+        function setMonthlyQuotaPayment() {
+            const proj = getActiveProject();
+            const id = document.getElementById('payPendingId').value;
+            const item = proj.pendingItems.find(i => i.id === id);
+            if (!item) return;
+            const remaining = Math.max(0, Math.round((item.totalAmount - item.paidAmount) * 100) / 100);
+            const quota = item.monthlyQuota || remaining;
+            document.getElementById('payAmount').value = Math.min(remaining, quota);
+        }
+
+        function setFullRemainingPayment() {
+            const proj = getActiveProject();
+            const id = document.getElementById('payPendingId').value;
+            const item = proj.pendingItems.find(i => i.id === id);
+            if (!item) return;
+            const remaining = Math.max(0, Math.round((item.totalAmount - item.paidAmount) * 100) / 100);
+            document.getElementById('payAmount').value = remaining;
+        }
+
+        function submitInstallmentPayment(e) {
+            e.preventDefault();
+            const proj = getActiveProject();
+            const pendingId = document.getElementById('payPendingId').value;
+            const amount = parseFloat(document.getElementById('payAmount').value);
+            const targetBoxId = document.getElementById('payTargetBoxId').value;
+            const note = document.getElementById('payNote').value.trim();
+
+            const item = proj.pendingItems.find(i => i.id === pendingId);
+            if (!item) return;
+
+            const remaining = Math.round((item.totalAmount - item.paidAmount) * 100) / 100;
+            if (isNaN(amount) || amount <= 0 || amount > remaining + 0.01) {
+                showToast('Verifica el monto del abono.', 'error');
+                return;
+            }
+
+            const nowISO = getLocalDateTimeString(new Date());
+            item.paidAmount = Math.round((item.paidAmount + amount) * 100) / 100;
+            if (!item.payments) item.payments = [];
+            item.payments.push({ date: nowISO, amount, note });
+
+            const box = proj.boxes.find(b => b.id === targetBoxId);
+            if (box) {
+                box.balance = Math.round((box.balance + amount) * 100) / 100;
+                const prefix = item.category === 'loan' ? 'Reintegro préstamo' : 'Abono cuota';
+                const fullSubject = `${prefix}: ${item.title}${note ? ' (' + note + ')' : ''}`;
+
+                proj.transactions.push({
+                    id: generateId('tx'),
+                    date: nowISO,
+                    boxId: targetBoxId,
+                    type: 'loan_in',
+                    amount,
+                    subject: fullSubject
+                });
+            }
+
+            saveState();
+            closeModal('installmentPayModal');
+            renderAll();
+            showToast(`Abono de ${formatQ(amount)} sumado a ${box ? box.name : 'la caja'}.`, 'success');
+        }
+
+        function confirmDeletePending(pendingId) {
+            const proj = getActiveProject();
+            const item = proj.pendingItems.find(i => i.id === pendingId);
+            if (!item) return;
+
+            openConfirm(
+                '¿Eliminar este registro pendiente?',
+                `Se borrará "${item.title}" de la lista de pendientes. Los movimientos ya ingresados en el historial de cajas se mantendrán intactos.`,
+                () => {
+                    proj.pendingItems = proj.pendingItems.filter(i => i.id !== pendingId);
+                    saveState();
+                    renderAll();
+                    showToast('Registro eliminado.', 'success');
+                }
+            );
+        }
+
+        // ==========================================
+        // ACCIONES: MATERIALES Y COMPARADOR DE FERRETERÍAS
+        // ==========================================
+        function renderMaterials() {
+            const proj = getActiveProject();
+            const grid = document.getElementById('materialsGrid');
+            if (!grid) return;
+
+            const search = (document.getElementById('filterMaterialSearch')?.value || '').toLowerCase().trim();
+            const materials = (proj.materials || []).filter(m => {
+                if (!search) return true;
+                const matchName = m.name.toLowerCase().includes(search);
+                const matchStore = (m.prices || []).some(p => p.store.toLowerCase().includes(search));
+                return matchName || matchStore;
+            });
+
+            grid.innerHTML = '';
+
+            if (materials.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-span-full py-12 text-center text-zinc-400 border border-dashed border-zinc-300 dark:border-zinc-800 rounded-3xl">
+                        <i data-lucide="hammer" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                        <p class="text-sm font-semibold text-zinc-600 dark:text-zinc-300">Lista de materiales vacía</p>
+                        <p class="text-xs mt-1">Haz clic en "+ Añadir Material" para anotar precios de distintas ferreterías y comparar cuál sale más barata.</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            materials.forEach(mat => {
+                const prices = [...(mat.prices || [])].sort((a, b) => a.price - b.price);
+                const bestPrice = prices.length > 0 ? prices[0].price : null;
+
+                const card = document.createElement('div');
+                card.className = 'bg-canvas-subtle dark:bg-canvas-elevatedDark/60 rounded-3xl p-5 border border-zinc-200/80 dark:border-zinc-800 flex flex-col justify-between space-y-4';
+
+                card.innerHTML = `
+                    <div>
+                        <div class="flex items-start justify-between gap-2">
+                            <div>
+                                <span class="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-sky-500/15 text-sky-600 dark:text-sky-400 mb-1.5">
+                                    Por ${escapeHTML(mat.unit || 'Unidad')}
+                                </span>
+                                <h5 class="font-display font-bold text-zinc-900 dark:text-white text-base leading-snug">${escapeHTML(mat.name)}</h5>
+                            </div>
+                            <div class="flex items-center gap-1 shrink-0">
+                                <button onclick="openMaterialModal('${mat.id}')" title="Editar precios / ferreterías" class="p-1.5 rounded-full text-zinc-400 hover:text-sky-500 hover:bg-sky-500/10 transition">
+                                    <i data-lucide="pencil" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="confirmDeleteMaterial('${mat.id}')" title="Eliminar material" class="p-1.5 rounded-full text-zinc-400 hover:text-rose-500 hover:bg-rose-500/10 transition">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mt-3.5 space-y-1.5">
+                            ${prices.length === 0 ? `
+                                <p class="text-xs text-zinc-400 italic">Sin precios registrados aún.</p>
+                            ` : prices.map((p, idx) => {
+                                const isCheapest = idx === 0 && prices.length > 1;
+                                const diff = bestPrice !== null && p.price > bestPrice ? (p.price - bestPrice) : 0;
+                                return `
+                                    <div class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs ${
+                                        isCheapest
+                                        ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 font-bold'
+                                        : 'bg-white dark:bg-canvas-cardDark text-zinc-700 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-800'
+                                    }">
+                                        <div class="flex items-center gap-1.5 truncate pr-2">
+                                            ${isCheapest ? '<i data-lucide="award" class="w-3.5 h-3.5 text-emerald-500 shrink-0"></i>' : '<i data-lucide="store" class="w-3.5 h-3.5 text-zinc-400 shrink-0"></i>'}
+                                            <span class="truncate">${escapeHTML(p.store)}</span>
+                                            ${isCheapest ? '<span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500 text-white font-bold shrink-0">Más barato</span>' : ''}
+                                        </div>
+                                        <div class="text-right shrink-0">
+                                            <span class="font-display font-extrabold">${formatQ(p.price)}</span>
+                                            ${diff > 0 ? `<span class="block text-[10px] text-rose-500">+${formatQ(diff)}</span>` : ''}
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+
+                    <div class="pt-2.5 border-t border-zinc-200/70 dark:border-zinc-800 flex justify-end">
+                        <button onclick="openMaterialModal('${mat.id}')" class="text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white flex items-center gap-1">
+                            <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-sky-500"></i>
+                            <span>Agregar / Comparar otro precio</span>
+                        </button>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+
+            lucide.createIcons();
+        }
+
+        function openMaterialModal(materialId = null) {
+            const proj = getActiveProject();
+            const title = document.getElementById('materialModalTitle');
+            const editId = document.getElementById('materialEditId');
+            const list = document.getElementById('hardwarePricesList');
+            list.innerHTML = '';
+
+            if (!materialId) {
+                title.innerHTML = '<i data-lucide="hammer" class="w-5 h-5 text-sky-500"></i><span>Añadir Material</span>';
+                editId.value = '';
+                document.getElementById('materialName').value = '';
+                document.getElementById('materialUnit').value = 'Unidad';
+                addHardwarePriceRow('', '');
+                addHardwarePriceRow('', '');
+            } else {
+                const mat = (proj.materials || []).find(m => m.id === materialId);
+                if (!mat) return;
+                title.innerHTML = '<i data-lucide="pencil" class="w-5 h-5 text-sky-500"></i><span>Editar Material y Precios</span>';
+                editId.value = mat.id;
+                document.getElementById('materialName').value = mat.name;
+                document.getElementById('materialUnit').value = mat.unit || 'Unidad';
+
+                if (mat.prices && mat.prices.length > 0) {
+                    mat.prices.forEach(p => addHardwarePriceRow(p.store, p.price));
+                } else {
+                    addHardwarePriceRow('', '');
+                }
+            }
+
+            openModal('materialModal');
+            lucide.createIcons();
+        }
+
+        function addHardwarePriceRow(store = '', price = '') {
+            const list = document.getElementById('hardwarePricesList');
+            const row = document.createElement('div');
+            row.className = 'flex items-center gap-2 hardware-price-row';
+            row.innerHTML = `
+                <input type="text" placeholder="Nombre de ferretería (Ej. Ferretería Central)" value="${escapeHTML(store)}" class="store-input flex-1 px-3.5 py-2 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-xs focus:outline-none">
+                <div class="relative w-28 shrink-0">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-zinc-400">Q</span>
+                    <input type="number" step="0.01" min="0" placeholder="0.00" value="${price}" class="price-input w-full pl-6 pr-2.5 py-2 rounded-2xl bg-canvas-subtle dark:bg-canvas-elevatedDark border border-zinc-200 dark:border-zinc-700 text-xs font-bold focus:outline-none">
+                </div>
+                <button type="button" onclick="this.parentElement.remove()" title="Quitar fila" class="p-2 rounded-full text-zinc-400 hover:text-rose-500 hover:bg-rose-500/10 transition">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            `;
+            list.appendChild(row);
+            lucide.createIcons();
+        }
+
+        function submitMaterial(e) {
+            e.preventDefault();
+            const proj = getActiveProject();
+            if (!Array.isArray(proj.materials)) proj.materials = [];
+
+            const editId = document.getElementById('materialEditId').value;
+            const name = document.getElementById('materialName').value.trim();
+            const unit = document.getElementById('materialUnit').value.trim() || 'Unidad';
+
+            const rows = document.querySelectorAll('#hardwarePricesList .hardware-price-row');
+            const prices = [];
+            rows.forEach(row => {
+                const store = row.querySelector('.store-input').value.trim();
+                const priceVal = parseFloat(row.querySelector('.price-input').value);
+                if (store && !isNaN(priceVal) && priceVal >= 0) {
+                    prices.push({
+                        store,
+                        price: Math.round(priceVal * 100) / 100
+                    });
+                }
+            });
+
+            if (prices.length === 0) {
+                showToast('Añade al menos una ferretería con su precio.', 'error');
+                return;
+            }
+
+            if (!editId) {
+                proj.materials.unshift({
+                    id: generateId('mat'),
+                    name,
+                    unit,
+                    prices
+                });
+                showToast(`Material "${name}" guardado.`, 'success');
+            } else {
+                const mat = proj.materials.find(m => m.id === editId);
+                if (mat) {
+                    mat.name = name;
+                    mat.unit = unit;
+                    mat.prices = prices;
+                    showToast('Material actualizado.', 'success');
+                }
+            }
+
+            saveState();
+            closeModal('materialModal');
+            renderAll();
+            switchTab('materials');
+        }
+
+        function confirmDeleteMaterial(materialId) {
+            const proj = getActiveProject();
+            const mat = (proj.materials || []).find(m => m.id === materialId);
+            if (!mat) return;
+
+            openConfirm(
+                `¿Eliminar "${mat.name}"?`,
+                'Se eliminará este material y su comparativa de precios de ferreterías.',
+                () => {
+                    proj.materials = proj.materials.filter(m => m.id !== materialId);
+                    saveState();
+                    renderAll();
+                    showToast('Material eliminado.', 'success');
+                }
+            );
+        }
+
+        // ==========================================
+        // ACCIONES: GESTIÓN MULTIPROYECTO
+        // ==========================================
+        function switchProject(projectId) {
+            appState.activeProjectId = projectId;
+            saveState();
+            clearHistoryFilters();
+            renderAll();
+            const proj = getActiveProject();
+            showToast(`Cambiado a proyecto: ${proj.name}`, 'info');
+        }
+
+        function openProjectModal(mode) {
+            const proj = getActiveProject();
+            document.getElementById('projectModalMode').value = mode;
+            const title = document.getElementById('projectModalTitle');
+            const nameInput = document.getElementById('projectNameInput');
+            const tplContainer = document.getElementById('projectTemplateContainer');
+
+            if (mode === 'create') {
+                title.innerHTML = '<i data-lucide="folder-plus" class="w-5 h-5 text-amber-500"></i><span>Crear Nuevo Proyecto</span>';
+                nameInput.value = '';
+                tplContainer.classList.remove('hidden');
+            } else {
+                title.innerHTML = '<i data-lucide="pencil" class="w-5 h-5 text-amber-500"></i><span>Renombrar Proyecto</span>';
+                nameInput.value = proj.name;
+                tplContainer.classList.add('hidden');
+            }
+
+            openModal('projectModal');
+            lucide.createIcons();
+            setTimeout(() => nameInput.focus(), 100);
+        }
+
+        function submitProject(e) {
+            e.preventDefault();
+            const mode = document.getElementById('projectModalMode').value;
+            const name = document.getElementById('projectNameInput').value.trim();
+            if (!name) return;
+
+            if (mode === 'create') {
+                const tpl = document.getElementById('projectTemplate').value;
+                const newId = generateId('proj');
+                let boxes = [];
+
+                if (tpl === 'carpentry') {
+                    boxes = [
+                        { id: generateId('box'), name: 'Caja 1: Reserva', description: 'Fondo principal reservado', balance: 0, minThreshold: 0, isCore: true, excludeFromTotal: false },
+                        { id: generateId('box'), name: 'Caja 2: Efectivo Operativo', description: 'Dinero en mano para gastos diarios', balance: 0, minThreshold: 400, isCore: true, excludeFromTotal: false },
+                        { id: generateId('box'), name: 'Caja 3: Fin Específico', description: 'Dinero apartado para objetivo concreto', balance: 0, minThreshold: 0, isCore: true, excludeFromTotal: true }
+                    ];
+                } else {
+                    boxes = [
+                        { id: generateId('box'), name: 'Caja Principal', description: 'Fondo general del proyecto', balance: 0, minThreshold: 0, isCore: true, excludeFromTotal: false }
+                    ];
+                }
+
+                appState.projects.push({
+                    id: newId,
+                    name,
+                    boxes,
+                    transactions: [],
+                    pendingItems: [],
+                    materials: []
+                });
+                appState.activeProjectId = newId;
+                showToast(`Proyecto "${name}" creado.`, 'success');
+            } else {
+                const proj = getActiveProject();
+                if (proj) {
+                    proj.name = name;
+                    showToast('Nombre del proyecto actualizado.', 'success');
+                }
+            }
+
+            saveState();
+            closeModal('projectModal');
+            renderAll();
+        }
+
+        function confirmDeleteProject() {
+            if (appState.projects.length <= 1) return;
+            const proj = getActiveProject();
+
+            openConfirm(
+                `¿Eliminar proyecto "${proj.name}"?`,
+                'Se borrarán permanentemente todas las cajas, historial y préstamos de este proyecto.',
+                () => {
+                    appState.projects = appState.projects.filter(p => p.id !== proj.id);
+                    appState.activeProjectId = appState.projects[0].id;
+                    saveState();
+                    renderAll();
+                    showToast('Proyecto eliminado.', 'success');
+                }
+            );
+        }
+
+        function confirmResetApp() {
+            openConfirm(
+                '¿Limpiar todos los datos y empezar en Q 0.00?',
+                'Se borrarán todos los proyectos, movimientos y préstamos guardados para dejar la app completamente limpia desde cero.',
+                () => {
+                    const currentTheme = appState.theme;
+                    appState = getDefaultState();
+                    appState.theme = currentTheme;
+                    saveState();
+                    clearHistoryFilters();
+                    renderAll();
+                    showToast('Aplicación reiniciada en Q 0.00.', 'success');
+                }
+            );
+        }
+
+        // ==========================================
+        // RESPALDO JSON (EXPORTAR / IMPORTAR)
+        // ==========================================
+        function exportBackup() {
+            try {
+                const dataStr = JSON.stringify(appState, null, 2);
+                const blob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const dateTag = new Date().toISOString().slice(0, 10);
+                const activeProj = getActiveProject();
+                const safeName = (activeProj ? activeProj.name : 'Respaldo').replace(/[^a-zA-Z0-9_-]/g, '_');
+                a.href = url;
+                a.download = `Respaldo_${safeName}_${dateTag}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast('Respaldo JSON descargado correctamente.', 'success');
+            } catch (e) {
+                showToast('No se pudo exportar el respaldo.', 'error');
+            }
+        }
+
+        function importBackup(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (imported && Array.isArray(imported.projects) && imported.projects.length > 0) {
+                        normalizeProjects(imported.projects);
+                        appState = imported;
+                        saveState();
+                        renderAll();
+                        showToast('Datos restaurados desde el respaldo con éxito.', 'success');
+                    } else {
+                        showToast('El archivo seleccionado no tiene un formato válido.', 'error');
+                    }
+                } catch (err) {
+                    showToast('Error al leer el archivo JSON.', 'error');
+                }
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        // ==========================================
+        // NAVEGACIÓN DE PESTAÑAS, MODALES Y TOASTS
+        // ==========================================
+        function switchTab(tabName) {
+            const tabs = [
+                { key: 'history', btn: document.getElementById('tabBtnHistory'), content: document.getElementById('tabContentHistory') },
+                { key: 'pending', btn: document.getElementById('tabBtnPending'), content: document.getElementById('tabContentPending') },
+                { key: 'materials', btn: document.getElementById('tabBtnMaterials'), content: document.getElementById('tabContentMaterials') }
+            ];
+
+            const activeClasses = ['bg-zinc-900', 'text-white', 'dark:bg-white', 'dark:text-zinc-900', 'shadow-sm'];
+            const inactiveClasses = ['text-zinc-600', 'dark:text-zinc-400', 'hover:text-zinc-900', 'dark:hover:text-white'];
+
+            tabs.forEach(t => {
+                if (t.key === tabName) {
+                    t.content.classList.remove('hidden');
+                    t.btn.classList.add(...activeClasses);
+                    t.btn.classList.remove(...inactiveClasses);
+                } else {
+                    t.content.classList.add('hidden');
+                    t.btn.classList.remove(...activeClasses);
+                    t.btn.classList.add(...inactiveClasses);
+                }
+            });
+        }
+
+        function openModal(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('hidden');
+                el.classList.add('flex');
+            }
+        }
+
+        function closeModal(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.add('hidden');
+                el.classList.remove('flex');
+            }
+        }
+
+        function openConfirm(title, message, onConfirm) {
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = message;
+            pendingConfirmCallback = onConfirm;
+            
+            const btn = document.getElementById('confirmActionBtn');
+            btn.onclick = () => {
+                closeModal('confirmModal');
+                if (typeof pendingConfirmCallback === 'function') {
+                    pendingConfirmCallback();
+                }
+            };
+            openModal('confirmModal');
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            let colors = 'bg-zinc-900 text-white border-zinc-800 dark:bg-white dark:text-zinc-900 dark:border-zinc-200';
+            let icon = 'info';
+            if (type === 'success') {
+                colors = 'bg-emerald-600 text-white border-emerald-500';
+                icon = 'check-circle';
+            } else if (type === 'error') {
+                colors = 'bg-rose-600 text-white border-rose-500';
+                icon = 'alert-circle';
+            } else if (type === 'warning') {
+                colors = 'bg-amber-600 text-white border-amber-500';
+                icon = 'alert-triangle';
+            }
+
+            toast.className = `pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-2xl border shadow-xl text-xs sm:text-sm font-medium transition-all duration-300 transform translate-y-2 opacity-0 ${colors}`;
+            toast.innerHTML = `
+                <i data-lucide="${icon}" class="w-4 h-4 shrink-0"></i>
+                <span>${escapeHTML(message)}</span>
+            `;
+
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3800);
+        }
+
+        function escapeHTML(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        window.addEventListener('click', (e) => {
+            const modals = ['txModal', 'transferModal', 'boxModal', 'pendingModal', 'installmentPayModal', 'projectModal', 'confirmModal', 'materialModal', 'cloudModal'];
+            modals.forEach(id => {
+                const el = document.getElementById(id);
+                if (e.target === el) closeModal(id);
+            });
+        });
+
+        // ==========================================
+        // SINCRONIZACIÓN EN LA NUBE (GOOGLE / FIREBASE)
+        // ==========================================
+        function getSavedFirebaseConfig() {
+            if (DEFAULT_FIREBASE_CONFIG) return DEFAULT_FIREBASE_CONFIG;
+            try {
+                const raw = localStorage.getItem(FIREBASE_CFG_KEY);
+                return raw ? JSON.parse(raw) : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function openCloudModal() {
+            const cfg = getSavedFirebaseConfig();
+            const textarea = document.getElementById('firebaseConfigInput');
+            if (cfg && textarea && !textarea.value) {
+                textarea.value = JSON.stringify(cfg, null, 2);
+            }
+            updateCloudUI();
+            openModal('cloudModal');
+            lucide.createIcons();
+        }
+
+        function saveFirebaseConfig() {
+            const raw = document.getElementById('firebaseConfigInput').value.trim();
+            if (!raw) {
+                localStorage.removeItem(FIREBASE_CFG_KEY);
+                showToast('Configuración de Firebase borrada.', 'info');
+                return;
+            }
+            try {
+                let cleaned = raw
+                    .replace(/const\s+firebaseConfig\s*=\s*/g, '')
+                    .replace(/;+\s*$/g, '')
+                    .replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":')
+                    .replace(/'/g, '"');
+                const parsed = JSON.parse(cleaned);
+                if (!parsed.apiKey || !parsed.projectId) {
+                    showToast('Faltan campos obligatorios (apiKey, projectId).', 'error');
+                    return;
+                }
+                localStorage.setItem(FIREBASE_CFG_KEY, JSON.stringify(parsed));
+                initFirebase(parsed);
+                showToast('Configuración de Firebase guardada. Ya puedes iniciar sesión con Google.', 'success');
+            } catch (e) {
+                showToast('Formato inválido. Copia las llaves { apiKey, authDomain, projectId } de Firebase.', 'error');
+            }
+        }
+
+        function initFirebase(config) {
+            if (!config || typeof firebase === 'undefined') return;
+            try {
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(config);
+                }
+                firebaseAuth = firebase.auth();
+                firebaseDb = firebase.firestore();
+
+                firebaseAuth.onAuthStateChanged(user => {
+                    currentUser = user;
+                    updateCloudUI();
+                    if (user) {
+                        listenToCloudData(user.uid);
+                    } else if (unsubscribeSnapshot) {
+                        unsubscribeSnapshot();
+                        unsubscribeSnapshot = null;
+                    }
+                });
+            } catch (e) {
+                console.error('Error iniciando Firebase:', e);
+                showToast('No se pudo conectar con Firebase. Revisa tu configuración.', 'error');
+            }
+        }
+
+        function updateCloudUI() {
+            const signedOutView = document.getElementById('cloudSignedOutView');
+            const signedInView = document.getElementById('cloudSignedInView');
+            const label = document.getElementById('cloudStatusLabel');
+            const headerAvatar = document.getElementById('headerUserAvatar');
+            const headerCloudIcon = document.getElementById('headerCloudIcon');
+            const headerBadgeText = document.getElementById('headerSyncBadgeText');
+            const nameEl = document.getElementById('cloudUserName');
+            const emailEl = document.getElementById('cloudUserEmail');
+            const modalAvatar = document.getElementById('modalUserAvatar');
+            const modalAvatarFallback = document.getElementById('modalUserAvatarFallback');
+
+            if (currentUser) {
+                const displayName = currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Cuenta Google');
+                const email = currentUser.email || '';
+                const photoURL = currentUser.photoURL || '';
+
+                signedOutView.classList.add('hidden');
+                signedInView.classList.remove('hidden');
+
+                if (nameEl) nameEl.textContent = displayName;
+                if (emailEl) emailEl.textContent = email;
+                if (label) label.textContent = displayName;
+                if (headerBadgeText) headerBadgeText.textContent = `Sincronizado con ${displayName}`;
+
+                if (photoURL) {
+                    if (headerAvatar) {
+                        headerAvatar.src = photoURL;
+                        headerAvatar.classList.remove('hidden');
+                    }
+                    if (headerCloudIcon) headerCloudIcon.classList.add('hidden');
+                    if (modalAvatar) {
+                        modalAvatar.src = photoURL;
+                        modalAvatar.classList.remove('hidden');
+                    }
+                    if (modalAvatarFallback) modalAvatarFallback.classList.add('hidden');
+                } else {
+                    if (headerAvatar) headerAvatar.classList.add('hidden');
+                    if (headerCloudIcon) headerCloudIcon.classList.remove('hidden');
+                    if (modalAvatar) modalAvatar.classList.add('hidden');
+                    if (modalAvatarFallback) {
+                        modalAvatarFallback.textContent = displayName.charAt(0).toUpperCase();
+                        modalAvatarFallback.classList.remove('hidden');
+                    }
+                }
+            } else {
+                signedOutView.classList.remove('hidden');
+                signedInView.classList.add('hidden');
+                if (label) label.textContent = 'Conectar Google';
+                if (headerAvatar) headerAvatar.classList.add('hidden');
+                if (headerCloudIcon) headerCloudIcon.classList.remove('hidden');
+                if (headerBadgeText) headerBadgeText.textContent = 'Almacenamiento Local Activo';
+            }
+        }
+
+        function signInWithGoogle() {
+            const cfg = getSavedFirebaseConfig();
+            if (!cfg) {
+                showToast('Primero pega y guarda tu configuración de Firebase abajo.', 'warning');
+                return;
+            }
+            if (!firebaseAuth) initFirebase(cfg);
+            const provider = new firebase.auth.GoogleAuthProvider();
+            firebaseAuth.signInWithPopup(provider).catch(err => {
+                if (err.code === 'auth/popup-blocked' || /iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                    firebaseAuth.signInWithRedirect(provider);
+                } else {
+                    showToast('Error al iniciar sesión con Google: ' + err.message, 'error');
+                }
+            });
+        }
+
+        function signOutGoogle() {
+            if (firebaseAuth) {
+                firebaseAuth.signOut().then(() => {
+                    showToast('Sesión de Google cerrada.', 'info');
+                });
+            }
+        }
+
+        function listenToCloudData(uid) {
+            if (!firebaseDb) return;
+            if (unsubscribeSnapshot) unsubscribeSnapshot();
+
+            const docRef = firebaseDb.collection('users').doc(uid);
+            unsubscribeSnapshot = docRef.onSnapshot(doc => {
+                if (doc.exists) {
+                    const remoteData = doc.data();
+                    if (remoteData && remoteData.state) {
+                        isApplyingRemoteUpdate = true;
+                        normalizeProjects(remoteData.state.projects || []);
+                        appState = remoteData.state;
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+                        renderAll();
+                        isApplyingRemoteUpdate = false;
+                    }
+                } else {
+                    syncStateToCloud();
+                }
+            }, err => {
+                console.error('Error escuchando Firestore:', err);
+            });
+        }
+
+        function syncStateToCloud() {
+            if (!firebaseDb || !currentUser) return;
+            const docRef = firebaseDb.collection('users').doc(currentUser.uid);
+            docRef.set({
+                state: appState,
+                updatedAt: new Date().toISOString()
+            }, { merge: true }).catch(err => {
+                console.error('Error guardando en Firestore:', err);
+            });
+        }
+
+        function forcePushToCloud() {
+            if (!currentUser) return;
+            syncStateToCloud();
+            showToast('Datos locales subidos a tu nube de Google.', 'success');
+        }
+
+        window.onload = function() {
+            loadState();
+            renderAll();
+            const cfg = getSavedFirebaseConfig();
+            if (cfg) initFirebase(cfg);
+        };
+    </script>
+</body>
+</html>
